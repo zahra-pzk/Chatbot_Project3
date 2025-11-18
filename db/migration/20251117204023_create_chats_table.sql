@@ -1,0 +1,26 @@
+-- +goose Up
+-- +goose StatementBegin
+CREATE TYPE chat_status_type AS ENUM ('open', 'pending', 'closed');
+
+CREATE TABLE chats (
+    chat_id             BIGSERIAL,
+    chat_external_id    UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_external_id    UUID                NOT NULL, 
+    status              chat_status_type    NOT NULL DEFAULT 'open',
+    created_at  TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    updated_at  TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    CONSTRAINT fk_chats_user
+        FOREIGN KEY (user_external_id) 
+        REFERENCES users (user_external_id) 
+        ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_chats_status ON chats(status);
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+DROP INDEX IF EXISTS idx_chats_status;
+DROP TABLE IF EXISTS chats;
+DROP TYPE IF EXISTS chat_status_type;
+-- +goose StatementEnd
