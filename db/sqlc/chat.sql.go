@@ -13,15 +13,23 @@ import (
 
 const createChat = `-- name: CreateChat :one
 INSERT INTO chats (
-    user_external_id
+    user_external_id,
+    status,
+    created_at,
+    updated_at
 ) VALUES (
-    $1
+    $1, $2, NOW(), NOW()
 )
 RETURNING chat_id, chat_external_id, user_external_id, status, created_at, updated_at
 `
 
-func (q *Queries) CreateChat(ctx context.Context, userExternalID uuid.UUID) (Chat, error) {
-	row := q.db.QueryRow(ctx, createChat, userExternalID)
+type CreateChatParams struct {
+	UserExternalID uuid.UUID `json:"user_external_id"`
+	Status         string    `json:"status"`
+}
+
+func (q *Queries) CreateChat(ctx context.Context, arg CreateChatParams) (Chat, error) {
+	row := q.db.QueryRow(ctx, createChat, arg.UserExternalID, arg.Status)
 	var i Chat
 	err := row.Scan(
 		&i.ChatID,
@@ -34,13 +42,38 @@ func (q *Queries) CreateChat(ctx context.Context, userExternalID uuid.UUID) (Cha
 	return i, err
 }
 
-const deleteChatStatus = `-- name: DeleteChatStatus :exec
+const createChatDefaults = `-- name: CreateChatDefaults :one
+INSERT INTO chats (
+    user_external_id,
+    created_at,
+    updated_at
+) VALUES (
+    $1, NOW(), NOW()
+)
+RETURNING chat_id, chat_external_id, user_external_id, status, created_at, updated_at
+`
+
+func (q *Queries) CreateChatDefaults(ctx context.Context, userExternalID uuid.UUID) (Chat, error) {
+	row := q.db.QueryRow(ctx, createChatDefaults, userExternalID)
+	var i Chat
+	err := row.Scan(
+		&i.ChatID,
+		&i.ChatExternalID,
+		&i.UserExternalID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteChat = `-- name: DeleteChat :exec
 DELETE FROM chats
 WHERE chat_external_id = $1
 `
 
-func (q *Queries) DeleteChatStatus(ctx context.Context, chatExternalID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteChatStatus, chatExternalID)
+func (q *Queries) DeleteChat(ctx context.Context, chatExternalID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteChat, chatExternalID)
 	return err
 }
 
@@ -61,6 +94,47 @@ func (q *Queries) GetChat(ctx context.Context, chatExternalID uuid.UUID) (Chat, 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getChatsByUser = `-- name: GetChatsByUser :many
+SELECT chat_id, chat_external_id, user_external_id, status, created_at, updated_at FROM chats
+WHERE user_external_id = $1
+ORDER BY created_at DESC
+LIMIT $2
+OFFSET $3
+`
+
+type GetChatsByUserParams struct {
+	UserExternalID uuid.UUID `json:"user_external_id"`
+	Limit          int32     `json:"limit"`
+	Offset         int32     `json:"offset"`
+}
+
+func (q *Queries) GetChatsByUser(ctx context.Context, arg GetChatsByUserParams) ([]Chat, error) {
+	rows, err := q.db.Query(ctx, getChatsByUser, arg.UserExternalID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.ChatExternalID,
+			&i.UserExternalID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listChats = `-- name: ListChats :many
@@ -102,11 +176,42 @@ func (q *Queries) ListChats(ctx context.Context, arg ListChatsParams) ([]Chat, e
 	return items, nil
 }
 
-const updateChatStatus = `-- name: UpdateChatStatus :exec
+const updateChat = `-- name: UpdateChat :one
+UPDATE chats
+SET
+    user_external_id = COALESCE($2, user_external_id),
+    status = COALESCE($3, status),
+    updated_at = NOW()
+WHERE chat_external_id = $1
+RETURNING chat_id, chat_external_id, user_external_id, status, created_at, updated_at
+`
+
+type UpdateChatParams struct {
+	ChatExternalID uuid.UUID `json:"chat_external_id"`
+	UserExternalID uuid.UUID `json:"user_external_id"`
+	Status         string    `json:"status"`
+}
+
+func (q *Queries) UpdateChat(ctx context.Context, arg UpdateChatParams) (Chat, error) {
+	row := q.db.QueryRow(ctx, updateChat, arg.ChatExternalID, arg.UserExternalID, arg.Status)
+	var i Chat
+	err := row.Scan(
+		&i.ChatID,
+		&i.ChatExternalID,
+		&i.UserExternalID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateChatStatus = `-- name: UpdateChatStatus :one
 UPDATE chats
 SET status = $2,
     updated_at = NOW()
 WHERE chat_external_id = $1
+RETURNING chat_id, chat_external_id, user_external_id, status, created_at, updated_at
 `
 
 type UpdateChatStatusParams struct {
@@ -114,7 +219,16 @@ type UpdateChatStatusParams struct {
 	Status         string    `json:"status"`
 }
 
-func (q *Queries) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) error {
-	_, err := q.db.Exec(ctx, updateChatStatus, arg.ChatExternalID, arg.Status)
-	return err
+func (q *Queries) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error) {
+	row := q.db.QueryRow(ctx, updateChatStatus, arg.ChatExternalID, arg.Status)
+	var i Chat
+	err := row.Scan(
+		&i.ChatID,
+		&i.ChatExternalID,
+		&i.UserExternalID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

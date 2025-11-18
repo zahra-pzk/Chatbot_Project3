@@ -30,3 +30,18 @@ sql:
             go_type: "string"
           - db_type: "chat_status_type"
             go_type: "string"
+          - db_type: "bigint"
+            go_type:
+              type: "int64"
+          - db_type: "int8"
+            go_type:
+              type: "int64"
+          - db_type: "text"
+            go_type:
+              type: "string"
+          - db_type: "varchar"
+            go_type:
+              type: "string"
+          - db_type: "character varying"
+            go_type:
+              type: "string"
