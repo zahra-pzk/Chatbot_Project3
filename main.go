@@ -8,17 +8,18 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/zahra-pzk/Chatbot_Project3/api"
 	db "github.com/zahra-pzk/Chatbot_Project3/db/sqlc"
+	"github.com/zahra-pzk/Chatbot_Project3/util"
 )
 
-const (
-    dbSource      = "postgresql://zahra-pzk:25111380@localhost:5432/chatbot?sslmode=disable"
-    serverAddress = "0.0.0.0:8080"
-)
 
 func main() {
+    config, err := util.LoadConfig(".")
+    if err != nil {
+        log.Fatal("cannot load config:", err)
+    }
     ctx := context.Background()
 
-    pool, err := pgxpool.New(ctx, dbSource)
+    pool, err := pgxpool.New(ctx, config.DBSource)
     if err != nil {
         log.Fatal("cannot connect to db:", err)
     }
@@ -26,7 +27,7 @@ func main() {
     store := db.NewStore(pool)
     server := api.NewServer(store)
 
-    if err := server.Start(serverAddress); err != nil {
+    if err := server.Start(config.ServerAddress); err != nil {
         log.Fatal("cannot start server:", err)
     }
 }
