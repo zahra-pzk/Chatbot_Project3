@@ -46,7 +46,7 @@ RETURNING *;
 -- name: UpdateChat :one
 UPDATE chats
 SET
-    user_external_id = COALESCE($2, user_external_id),
+user_external_id = COALESCE(NULLIF($2, '00000000-0000-0000-0000-000000000000'::uuid), user_external_id),
     status = COALESCE($3, status),
     updated_at = NOW()
 WHERE chat_external_id = $1

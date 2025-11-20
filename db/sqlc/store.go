@@ -29,7 +29,7 @@ type SQLStore struct {
 	*Queries
 }
 
-func NewStore(conn *pgxpool.Pool) Store {
+func NewStore(conn *pgxpool.Pool) *SQLStore {
 	return &SQLStore{
 		conn:    conn,
 		Queries: New(conn),

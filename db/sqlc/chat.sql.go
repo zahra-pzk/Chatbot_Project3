@@ -179,7 +179,7 @@ func (q *Queries) ListChats(ctx context.Context, arg ListChatsParams) ([]Chat, e
 const updateChat = `-- name: UpdateChat :one
 UPDATE chats
 SET
-    user_external_id = COALESCE($2, user_external_id),
+user_external_id = COALESCE(NULLIF($2, '00000000-0000-0000-0000-000000000000'::uuid), user_external_id),
     status = COALESCE($3, status),
     updated_at = NOW()
 WHERE chat_external_id = $1
@@ -187,13 +187,13 @@ RETURNING chat_id, chat_external_id, user_external_id, status, created_at, updat
 `
 
 type UpdateChatParams struct {
-	ChatExternalID uuid.UUID `json:"chat_external_id"`
-	UserExternalID uuid.UUID `json:"user_external_id"`
-	Status         string    `json:"status"`
+	ChatExternalID uuid.UUID   `json:"chat_external_id"`
+	Column2        interface{} `json:"column_2"`
+	Status         string      `json:"status"`
 }
 
 func (q *Queries) UpdateChat(ctx context.Context, arg UpdateChatParams) (Chat, error) {
-	row := q.db.QueryRow(ctx, updateChat, arg.ChatExternalID, arg.UserExternalID, arg.Status)
+	row := q.db.QueryRow(ctx, updateChat, arg.ChatExternalID, arg.Column2, arg.Status)
 	var i Chat
 	err := row.Scan(
 		&i.ChatID,
