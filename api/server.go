@@ -3,11 +3,13 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	db "github.com/zahra-pzk/Chatbot_Project3/db/sqlc"
+	"github.com/zahra-pzk/Chatbot_Project3/token"
 )
 
 type Server struct {
-    store 	db.SQLStore
-    router *gin.Engine
+    store 		db.SQLStore
+	tokenMaker	token.Maker
+    router 		*gin.Engine
 }
 
 func NewServer(store *db.SQLStore) *Server{
