@@ -10,10 +10,10 @@ import (
 )
 
 type Server struct {
-	config		util.Config
-    store 		db.SQLStore
-	tokenMaker	token.Maker
-    router 		*gin.Engine
+	config     util.Config
+	store      db.SQLStore
+	tokenMaker token.Maker
+	router     *gin.Engine
 }
 
 func NewServer(config util.Config, store *db.SQLStore) (*Server, error) {
@@ -22,20 +22,26 @@ func NewServer(config util.Config, store *db.SQLStore) (*Server, error) {
 		return nil, fmt.Errorf("cannot create token maker: %w", err)
 	}
 	server := &Server{
-		config: config,
-		store: *store,
+		config:     config,
+		store:      *store,
 		tokenMaker: tokenMaker,
 	}
+
+	server.setupRouter()
+	return server, nil
+}
+
+func (server *Server) setupRouter() {
 	router := gin.Default()
 
 	router.POST("/users", server.createUser)
 	router.POST("/users/login", server.loginUser)
 
-    router.GET("/users/:userExternalID", server.getUser)
-    router.GET("/users", server.listUsers) 
-    router.PUT("/users/:userExternalID", server.updateUser)
-    router.PATCH("/users/:userExternalID/password", server.updatePassword)
-    router.DELETE("/users/:userExternalID", server.deleteUser)
+	router.GET("/users/:userExternalID", server.getUser)
+	router.GET("/users", server.listUsers)
+	router.PUT("/users/:userExternalID", server.updateUser)
+	router.PATCH("/users/:userExternalID/password", server.updatePassword)
+	router.DELETE("/users/:userExternalID", server.deleteUser)
 
 	router.POST("/chats", server.createChat)
 	router.GET("/chats/:chatExternalID", server.getChat)
@@ -46,14 +52,14 @@ func NewServer(config util.Config, store *db.SQLStore) (*Server, error) {
 	router.PATCH("/chats/:chatExternalID", server.updateChat)
 
 	router.POST("/messages", server.createMessage)
-    router.GET("/chats/:chatExternalID/messages", server.listMessagesByChat) 
-    router.GET("/chats/:chatExternalID/messages/recent", server.listRecentMessagesByChat)
-    router.GET("/messages/:messageExternalID", server.getMessage)
-    router.PATCH("/messages/:messageExternalID", server.updateMessage)
-    router.DELETE("/messages/:messageExternalID", server.deleteMessage)
+	router.GET("/chats/:chatExternalID/messages", server.listMessagesByChat)
+	router.GET("/chats/:chatExternalID/messages/recent", server.listRecentMessagesByChat)
+	router.GET("/messages/:messageExternalID", server.getMessage)
+	router.PATCH("/messages/:messageExternalID", server.updateMessage)
+	router.DELETE("/messages/:messageExternalID", server.deleteMessage)
 
 	server.router = router
-	return server, nil
+
 }
 
 func (server *Server) Start(address string) error {
