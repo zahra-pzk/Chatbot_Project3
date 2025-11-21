@@ -2,7 +2,9 @@ package api
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -11,14 +13,22 @@ import (
 	"github.com/zahra-pzk/Chatbot_Project3/util"
 )
 
-
 type createUserRequest struct {
-	Name		string `json:"name" binding:"required"`
-	Username	string `json:"username"`
+	Name        string `json:"name" binding:"required"`
+	Username    string `json:"username" binding:"required"`
 	PhoneNumber string `json:"phone_number"`
-	Email		string `json:"email"`
-	Password	string `json:"password" binding:"required,min=8"`
-	Role		string `json:"role" binding:"required,oneof=user admin superadmin system guest"`
+	Email       string `json:"email"`
+	Password    string `json:"password" binding:"required,min=8"`
+	Role        string `json:"role" binding:"required,oneof=user admin superadmin system guest"`
+}
+
+type userResponse struct {
+	Name        string    `json:"name"`
+	Username    string    `json:"username"`
+	PhoneNumber string    `json:"phone_number"`
+	Email       string    `json:"email"`
+	Role        string    `json:"role"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type getUserRequest struct {
@@ -26,26 +36,49 @@ type getUserRequest struct {
 }
 
 type listUsersRequest struct {
-	PageID		int32 `form:"page_id" binding:"required,min=1"`
-	PageSize	int32 `form:"page_size" binding:"required,min=5,max=10"`
+	PageID   int32 `form:"page_id" binding:"required,min=1"`
+	PageSize int32 `form:"page_size" binding:"required,min=5,max=10"`
 }
 
 type updateUserRequest struct {
 	UserExternalID string `uri:"userExternalID" binding:"required"`
 }
 type updateUserBodyRequest struct {
-	Name		string `json:"name"`
-	Username	string `json:"username"`
-	PhoneNumber	string `json:"phone_number"`
-	Email		string `json:"email"`
-	Role		string `json:"role" binding:"omitempty,oneof=user admin superadmin system guest"`
+	Name        string `json:"name"`
+	Username    string `json:"username"`
+	PhoneNumber string `json:"phone_number"`
+	Email       string `json:"email"`
+	Role        string `json:"role" binding:"omitempty,oneof=user admin superadmin system guest"`
 }
 
 type updatePasswordBodyRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-
+func newUserResponse(user db.User) userResponse {
+	var username, phone, email string
+	var createdAt time.Time
+	if user.Username.Valid {
+		username = user.Username.String
+	}
+	if user.PhoneNumber.Valid {
+		phone = user.PhoneNumber.String
+	}
+	if user.Email.Valid {
+		email = user.Email.String
+	}
+	if user.CreatedAt.Valid {
+		createdAt = user.CreatedAt.Time
+	}
+	return userResponse{
+		Name:        user.Name,
+		Username:    username,
+		PhoneNumber: phone,
+		Email:       email,
+		Role:        user.Role,
+		CreatedAt:   createdAt,
+	}
+}
 func (server *Server) createUser(ctx *gin.Context) {
 	var req createUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -59,30 +92,21 @@ func (server *Server) createUser(ctx *gin.Context) {
 	}
 
 	arg := db.CreateUserParams{
-		Name: req.Name,
-		Username: pgtype.Text{String: req.Username, Valid: req.Username != ""},
-		PhoneNumber: 	pgtype.Text{String: req.PhoneNumber, Valid: req.PhoneNumber != ""},
-		Email:			pgtype.Text{String: req.Email, Valid: req.Email != ""},
+		Name:           req.Name,
+		Username:       pgtype.Text{String: req.Username, Valid: req.Username != ""},
+		PhoneNumber:    pgtype.Text{String: req.PhoneNumber, Valid: req.PhoneNumber != ""},
+		Email:          pgtype.Text{String: req.Email, Valid: req.Email != ""},
 		HashedPassword: pgtype.Text{String: hashedPassword, Valid: hashedPassword != ""},
-		Role: req.Role,
+		Role:           req.Role,
+	}
 
-	}
-	/*
-	arg := db.CreateUserParams{
-		Name:			req.Name,
-		Username:		pgtype.Text{String: req.Username, Valid: req.Username != ""},
-		PhoneNumber: 	pgtype.Text{String: req.PhoneNumber, Valid: req.PhoneNumber != ""},
-		Email:			pgtype.Text{String: req.Email, Valid: req.Email != ""},
-		Password:		pgtype.Text{String: req.Password, Valid: req.Password != ""},
-		Role:			req.Role,
-	}
-*/
 	user, err := server.store.CreateUser(ctx, arg)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
-	ctx.JSON(http.StatusOK, user)
+	rsp := newUserResponse(user)
+	ctx.JSON(http.StatusOK, rsp)
 }
 
 func (server *Server) getUser(ctx *gin.Context) {
@@ -91,7 +115,7 @@ func (server *Server) getUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
 		return
 	}
-    
+
 	userUUID, err := uuid.Parse(req.UserExternalID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
@@ -118,7 +142,7 @@ func (server *Server) listUsers(ctx *gin.Context) {
 	}
 
 	arg := db.ListUsersParams{
-		Limit: req.PageSize,
+		Limit:  req.PageSize,
 		Offset: (req.PageID - 1) * req.PageSize,
 	}
 
@@ -177,11 +201,11 @@ func (server *Server) updateUser(ctx *gin.Context) {
 
 	arg := db.UpdateUserParams{
 		UserExternalID: userUUID,
-		Name:      bodyReq.Name,
-		Username:    pgtype.Text{String: bodyReq.Username, Valid: bodyReq.Username != ""},
-		PhoneNumber:  pgtype.Text{String: bodyReq.PhoneNumber, Valid: bodyReq.PhoneNumber != ""},
-		Email:     pgtype.Text{String: bodyReq.Email, Valid: bodyReq.Email != ""},
-		Role:      bodyReq.Role,
+		Name:           bodyReq.Name,
+		Username:       pgtype.Text{String: bodyReq.Username, Valid: bodyReq.Username != ""},
+		PhoneNumber:    pgtype.Text{String: bodyReq.PhoneNumber, Valid: bodyReq.PhoneNumber != ""},
+		Email:          pgtype.Text{String: bodyReq.Email, Valid: bodyReq.Email != ""},
+		Role:           bodyReq.Role,
 	}
 
 	user, err := server.store.UpdateUser(ctx, arg)
@@ -219,10 +243,10 @@ func (server *Server) updatePassword(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
-    
+
 	arg := db.UpdateUserPasswordParams{
 		UserExternalID: userUUID,
-		HashedPassword:    pgtype.Text{String: hashedPassword, Valid: true},
+		HashedPassword: pgtype.Text{String: hashedPassword, Valid: true},
 	}
 
 	err = server.store.UpdateUserPassword(ctx, arg)
@@ -235,4 +259,64 @@ func (server *Server) updatePassword(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusNoContent, nil)
+}
+
+type loginUserRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required,min=8"`
+}
+
+type loginUserResponse struct {
+	AccessToken string       `json:"access_token"`
+	User        userResponse `json:"user"`
+}
+
+func (server *Server) loginUser(ctx *gin.Context){
+	var req loginUserRequest
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+
+	user, err := server.store.GetUserByUsername(ctx, pgtype.Text{String: req.Username, Valid: req.Username != ""})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusNotFound, errorResponse(err))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+
+	if !user.HashedPassword.Valid {
+		ctx.JSON(http.StatusUnauthorized, errorResponse(errors.New("invalid credentials")))
+		return
+	}
+
+	err = util.CheckPassword(req.Password, user.HashedPassword.String)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
+	}
+
+	usernameForToken := user.Username.String
+	if usernameForToken == "" {
+		usernameForToken = req.Username
+	}
+
+	accessToken, err := server.tokenMaker.CreateToken(
+		usernameForToken,
+		server.config.AccessTokenDuration,
+	)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+
+	rsp := loginUserResponse{
+		AccessToken: accessToken,
+		User:        newUserResponse(user),
+	}
+	ctx.JSON(http.StatusOK, rsp)
 }

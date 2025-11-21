@@ -29,6 +29,8 @@ func NewServer(config util.Config, store *db.SQLStore) (*Server, error) {
 	router := gin.Default()
 
 	router.POST("/users", server.createUser)
+	router.POST("/users/login", server.loginUser)
+
     router.GET("/users/:userExternalID", server.getUser)
     router.GET("/users", server.listUsers) 
     router.PUT("/users/:userExternalID", server.updateUser)
