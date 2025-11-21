@@ -61,7 +61,11 @@ func (server *Server) createUser(ctx *gin.Context) {
 	arg := db.CreateUserParams{
 		Name: req.Name,
 		Username: pgtype.Text{String: req.Username, Valid: req.Username != ""},
-		Password: pgtype.Text{String: req.Password, Valid: req.Password != ""},
+		PhoneNumber: 	pgtype.Text{String: req.PhoneNumber, Valid: req.PhoneNumber != ""},
+		Email:			pgtype.Text{String: req.Email, Valid: req.Email != ""},
+		HashedPassword: pgtype.Text{String: hashedPassword, Valid: hashedPassword != ""},
+		Role: req.Role,
+
 	}
 	/*
 	arg := db.CreateUserParams{
@@ -210,10 +214,15 @@ func (server *Server) updatePassword(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
 		return
 	}
+	hashedPassword, err := util.HashPassword(bodyReq.Password)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
     
 	arg := db.UpdateUserPasswordParams{
 		UserExternalID: userUUID,
-		Password:    pgtype.Text{String: bodyReq.Password, Valid: true},
+		HashedPassword:    pgtype.Text{String: hashedPassword, Valid: true},
 	}
 
 	err = server.store.UpdateUserPassword(ctx, arg)
