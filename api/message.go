@@ -21,15 +21,13 @@ type messageIDRequest struct {
 	MessageExternalID string `uri:"messageExternalID" binding:"required"`
 }
 
-type listMessagesByChatRequest struct {
-	ChatExternalID string `uri:"chatExternalID" binding:"required"`
-	PageID    int32  `form:"page_id" binding:"required,min=1"`
-	PageSize   int32  `form:"page_size" binding:"required,min=5,max=50"`
+type listMessagesByChatQuery struct {
+    PageID     int32  `form:"page_id" binding:"required,min=1"`
+    PageSize   int32  `form:"page_size" binding:"required,min=5,max=50"`
 }
 
-type listRecentMessagesRequest struct {
-	ChatExternalID string `uri:"chatExternalID" binding:"required"`
-	Limit     int32  `form:"limit" binding:"required,min=1,max=50"`
+type listRecentMessagesQuery struct {
+    Limit      int32  `form:"limit" binding:"required,min=1,max=50"`
 }
 
 
@@ -97,18 +95,17 @@ func (server *Server) getMessage(ctx *gin.Context) {
 }
 
 func (server *Server) listMessagesByChat(ctx *gin.Context) {
-	var uriReq struct { ChatExternalID string `uri:"chatExternalID" binding:"required"` }
-	if err := ctx.ShouldBindUri(&uriReq); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
-		return
-	}
+  var uriReq struct { ChatExternalID string `uri:"chatExternalID" binding:"required"` }
+  if err := ctx.ShouldBindUri(&uriReq); err != nil {
+    ctx.JSON(http.StatusBadRequest, errorResponse(err))
+    return
+  }
 
-	var queryReq listMessagesByChatRequest
-	if err := ctx.ShouldBindQuery(&queryReq); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
-		return
-	}
-    
+  var queryReq listMessagesByChatQuery 
+  if err := ctx.ShouldBindQuery(&queryReq); err != nil {
+    ctx.JSON(http.StatusBadRequest, errorResponse(err))
+    return
+  }
     chatUUID, err := uuid.Parse(uriReq.ChatExternalID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
@@ -116,11 +113,11 @@ func (server *Server) listMessagesByChat(ctx *gin.Context) {
 	}
 
 
-	arg := db.ListMessagesByChatParams{
-		ChatExternalID: chatUUID,
-		Limit:     queryReq.PageSize,
-		Offset:     (queryReq.PageID - 1) * queryReq.PageSize,
-	}
+arg := db.ListMessagesByChatParams{
+    ChatExternalID: chatUUID,
+    Limit:   queryReq.PageSize,
+    Offset:   (queryReq.PageID - 1) * queryReq.PageSize,
+  }
 
 	messages, err := server.store.ListMessagesByChat(ctx, arg)
 	if err != nil {
@@ -137,7 +134,7 @@ func (server *Server) listRecentMessagesByChat(ctx *gin.Context) {
 		return
 	}
 
-	var queryReq listRecentMessagesRequest
+	var queryReq listMessagesByChatQuery
 	if err := ctx.ShouldBindQuery(&queryReq); err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
 		return
@@ -151,7 +148,7 @@ func (server *Server) listRecentMessagesByChat(ctx *gin.Context) {
 
 	arg := db.ListRecentMessagesByChatParams{
 		ChatExternalID: chatUUID,
-		Limit:     queryReq.Limit,
+		Limit:     queryReq.PageID,
 	}
 
 	messages, err := server.store.ListRecentMessagesByChat(ctx, arg)

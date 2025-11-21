@@ -40,7 +40,7 @@ func (server *Server) createChat(ctx *gin.Context) {
 }
 
 type getChatRequest struct {
-	ChatExternalID uuid.UUID `uri:"chatExternalID" binding:"required"`
+	ChatExternalID string `uri:"chatExternalID" binding:"required"`
 }
 
 func (server *Server) getChat(ctx *gin.Context) {
@@ -50,19 +50,23 @@ func (server *Server) getChat(ctx *gin.Context) {
 		return
 	}
 
-	chat, err := server.store.GetChat(ctx, req.ChatExternalID)
+	chatUUID, err := uuid.Parse(req.ChatExternalID)
+    if err != nil {
+        ctx.JSON(http.StatusBadRequest, errorResponse(err))
+        return
+    }
+	chat, err := server.store.GetChat(ctx, chatUUID)
+
 	if err != nil {
-		if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusNotFound, errorResponse(err))
-		return
-		}
-
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return
-	}
-	ctx.JSON(http.StatusOK, chat)
+    	if err == sql.ErrNoRows {
+    		ctx.JSON(http.StatusNotFound, errorResponse(err))
+    		return
+    	}
+    	ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+    	return
+  	}
+  	ctx.JSON(http.StatusOK, chat)
 }
-
 type getChatsByUserRequest struct {
 	UserExternalID	string `form:"user_external_id" binding:"required"`
 	pageID			int32 `form:"page_id" binding:"required,min=1"`
@@ -124,25 +128,32 @@ func (server *Server) listChats(ctx *gin.Context) {
 }
 
  type deleteChatRequest struct {
-	ChatExternalID uuid.UUID `uri:"chatExternalID" binding:"required"`
+	ChatExternalID string `uri:"chatExternalID" binding:"required"`
 }
 
 func (server *Server) deleteChat(ctx *gin.Context) {
-	var req deleteChatRequest
-	if err := ctx.ShouldBindUri(&req); err != nil { 
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
-		return
-	}
-	err := server.store.DeleteChat(ctx, req.ChatExternalID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			ctx.JSON(http.StatusNotFound, errorResponse(err))
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return
-	}
-	ctx.JSON(http.StatusNoContent, nil) 
+  var req deleteChatRequest
+  if err := ctx.ShouldBindUri(&req); err != nil {
+    ctx.JSON(http.StatusBadRequest, errorResponse(err))
+    return
+  }
+
+    chatUUID, err := uuid.Parse(req.ChatExternalID)
+  if err != nil {
+    ctx.JSON(http.StatusBadRequest, errorResponse(err))
+    return
+  }
+
+  err = server.store.DeleteChat(ctx, chatUUID)
+  if err != nil {
+    if err == sql.ErrNoRows {
+      ctx.JSON(http.StatusNotFound, errorResponse(err))
+      return
+    }
+    ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+    return
+  }
+  ctx.JSON(http.StatusNoContent, nil) 
 }
 
 type updateChatStatusRequest struct {

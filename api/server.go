@@ -35,7 +35,7 @@ func NewServer(store *db.SQLStore) *Server{
     router.GET("/messages/:messageExternalID", server.getMessage)
     router.PATCH("/messages/:messageExternalID", server.updateMessage)
     router.DELETE("/messages/:messageExternalID", server.deleteMessage)
-	
+
 	server.router = router
 	return server
 }
