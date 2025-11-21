@@ -1,19 +1,31 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	db "github.com/zahra-pzk/Chatbot_Project3/db/sqlc"
 	"github.com/zahra-pzk/Chatbot_Project3/token"
+	"github.com/zahra-pzk/Chatbot_Project3/util"
 )
 
 type Server struct {
+	config		util.Config
     store 		db.SQLStore
 	tokenMaker	token.Maker
     router 		*gin.Engine
 }
 
-func NewServer(store *db.SQLStore) *Server{
-	server := &Server{store: *store}
+func NewServer(config util.Config, store *db.SQLStore) (*Server, error) {
+	tokenMaker, err := token.NewPasetoMaker(config.TokenSymmetricKey)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create token maker: %w", err)
+	}
+	server := &Server{
+		config: config,
+		store: *store,
+		tokenMaker: tokenMaker,
+	}
 	router := gin.Default()
 
 	router.POST("/users", server.createUser)
@@ -39,7 +51,7 @@ func NewServer(store *db.SQLStore) *Server{
     router.DELETE("/messages/:messageExternalID", server.deleteMessage)
 
 	server.router = router
-	return server
+	return server, nil
 }
 
 func (server *Server) Start(address string) error {
