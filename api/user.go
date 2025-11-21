@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	db "github.com/zahra-pzk/Chatbot_Project3/db/sqlc"
+	"github.com/zahra-pzk/Chatbot_Project3/util"
 )
 
 
@@ -16,7 +17,7 @@ type createUserRequest struct {
 	Username	string `json:"username"`
 	PhoneNumber string `json:"phone_number"`
 	Email		string `json:"email"`
-	Password	string `json:"password" binding:"required"`
+	Password	string `json:"password" binding:"required,min=8"`
 	Role		string `json:"role" binding:"required,oneof=user admin superadmin system guest"`
 }
 
@@ -51,7 +52,18 @@ func (server *Server) createUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
 		return
 	}
+	hashedPassword, err := util.HashPassword(req.Password)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
 
+	arg := db.CreateUserParams{
+		Name: req.Name,
+		Username: pgtype.Text{String: req.Username, Valid: req.Username != ""},
+		Password: pgtype.Text{String: req.Password, Valid: req.Password != ""},
+	}
+	/*
 	arg := db.CreateUserParams{
 		Name:			req.Name,
 		Username:		pgtype.Text{String: req.Username, Valid: req.Username != ""},
@@ -60,7 +72,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 		Password:		pgtype.Text{String: req.Password, Valid: req.Password != ""},
 		Role:			req.Role,
 	}
-
+*/
 	user, err := server.store.CreateUser(ctx, arg)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))

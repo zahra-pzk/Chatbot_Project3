@@ -9,7 +9,7 @@ CREATE TABLE users (
     username            VARCHAR(255)        UNIQUE,
     phone_number        VARCHAR(50)         UNIQUE,
     email               VARCHAR(255)        UNIQUE,
-    password            TEXT,
+    hashed_password     TEXT,
     role                role_type           NOT NULL DEFAULT 'guest', 
     created_at  TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     updated_at  TIMESTAMP WITHOUT TIME ZONE NOT NULL

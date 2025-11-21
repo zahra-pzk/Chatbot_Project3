@@ -18,23 +18,23 @@ INSERT INTO users (
     username,
     phone_number,
     email,
-    password,
+    hashed_password,
     role,
     created_at,
     updated_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, NOW(), NOW()
 )
-RETURNING user_id, user_external_id, name, username, phone_number, email, password, role, created_at, updated_at
+RETURNING user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	Name        string      `json:"name"`
-	Username    pgtype.Text `json:"username"`
-	PhoneNumber pgtype.Text `json:"phone_number"`
-	Email       pgtype.Text `json:"email"`
-	Password    pgtype.Text `json:"password"`
-	Role        string      `json:"role"`
+	Name           string      `json:"name"`
+	Username       pgtype.Text `json:"username"`
+	PhoneNumber    pgtype.Text `json:"phone_number"`
+	Email          pgtype.Text `json:"email"`
+	HashedPassword pgtype.Text `json:"hashed_password"`
+	Role           string      `json:"role"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -43,7 +43,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Username,
 		arg.PhoneNumber,
 		arg.Email,
-		arg.Password,
+		arg.HashedPassword,
 		arg.Role,
 	)
 	var i User
@@ -54,7 +54,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Password,
+		&i.HashedPassword,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -73,7 +73,7 @@ func (q *Queries) DeleteUser(ctx context.Context, userExternalID uuid.UUID) erro
 }
 
 const getUser = `-- name: GetUser :one
-SELECT user_id, user_external_id, name, username, phone_number, email, password, role, created_at, updated_at FROM users
+SELECT user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at FROM users
 WHERE user_external_id = $1
 `
 
@@ -87,7 +87,7 @@ func (q *Queries) GetUser(ctx context.Context, userExternalID uuid.UUID) (User, 
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Password,
+		&i.HashedPassword,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -96,7 +96,7 @@ func (q *Queries) GetUser(ctx context.Context, userExternalID uuid.UUID) (User, 
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT user_id, user_external_id, name, username, phone_number, email, password, role, created_at, updated_at FROM users
+SELECT user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at FROM users
 WHERE email = $1
 `
 
@@ -110,7 +110,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, 
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Password,
+		&i.HashedPassword,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -119,7 +119,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, 
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT user_id, user_external_id, name, username, phone_number, email, password, role, created_at, updated_at FROM users
+SELECT user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at FROM users
 WHERE username = $1
 `
 
@@ -133,7 +133,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Password,
+		&i.HashedPassword,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -142,7 +142,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT user_id, user_external_id, name, username, phone_number, email, password, role, created_at, updated_at FROM users
+SELECT user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at FROM users
 ORDER BY created_at DESC
 LIMIT $1
 OFFSET $2
@@ -169,7 +169,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.Username,
 			&i.PhoneNumber,
 			&i.Email,
-			&i.Password,
+			&i.HashedPassword,
 			&i.Role,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -194,7 +194,7 @@ SET
     role = $6,
     updated_at = NOW()
 WHERE user_external_id = $1
-RETURNING user_id, user_external_id, name, username, phone_number, email, password, role, created_at, updated_at
+RETURNING user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at
 `
 
 type UpdateUserParams struct {
@@ -223,7 +223,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Password,
+		&i.HashedPassword,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -233,17 +233,17 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 
 const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE users
-SET password = $2,
+SET hashed_password = $2,
     updated_at = NOW()
 WHERE user_external_id = $1
 `
 
 type UpdateUserPasswordParams struct {
 	UserExternalID uuid.UUID   `json:"user_external_id"`
-	Password       pgtype.Text `json:"password"`
+	HashedPassword pgtype.Text `json:"hashed_password"`
 }
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
-	_, err := q.db.Exec(ctx, updateUserPassword, arg.UserExternalID, arg.Password)
+	_, err := q.db.Exec(ctx, updateUserPassword, arg.UserExternalID, arg.HashedPassword)
 	return err
 }

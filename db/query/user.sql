@@ -4,7 +4,7 @@ INSERT INTO users (
     username,
     phone_number,
     email,
-    password,
+    hashed_password,
     role,
     created_at,
     updated_at
@@ -45,7 +45,7 @@ RETURNING *;
 
 -- name: UpdateUserPassword :exec
 UPDATE users
-SET password = $2,
+SET hashed_password = $2,
     updated_at = NOW()
 WHERE user_external_id = $1;
 
