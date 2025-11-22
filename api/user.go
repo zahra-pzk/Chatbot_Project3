@@ -179,7 +179,6 @@ func (server *Server) deleteUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusNoContent, nil)
 }
 
-
 func (server *Server) updateUser(ctx *gin.Context) {
 	var uriReq updateUserRequest
 	if err := ctx.ShouldBindUri(&uriReq); err != nil {
@@ -271,7 +270,7 @@ type loginUserResponse struct {
 	User        userResponse `json:"user"`
 }
 
-func (server *Server) loginUser(ctx *gin.Context){
+func (server *Server) loginUser(ctx *gin.Context) {
 	var req loginUserRequest
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -300,15 +299,11 @@ func (server *Server) loginUser(ctx *gin.Context){
 		return
 	}
 
-	usernameForToken := user.Username.String
-	if usernameForToken == "" {
-		usernameForToken = req.Username
-	}
-
 	accessToken, err := server.tokenMaker.CreateToken(
-		usernameForToken,
+		user.UserExternalID,
 		server.config.AccessTokenDuration,
 	)
+
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return

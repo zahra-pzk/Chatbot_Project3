@@ -7,10 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	db "github.com/zahra-pzk/Chatbot_Project3/db/sqlc"
+	"github.com/zahra-pzk/Chatbot_Project3/token"
 )
 
 type startChatRequest struct {
-	UserExternalID	uuid.UUID	`json:"user_external_id" binding:"required"`
 	Content			string		`json:"content" binding:"required"`
 }
 
@@ -20,9 +20,10 @@ func (server *Server) createChat(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
 		return
 	}
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 
 	arg := db.StartChatTxParams{
-		UserExternalID: req.UserExternalID,
+		UserExternalID: authPayload.UserExternalID,
 		Content: req.Content,
 	}
 

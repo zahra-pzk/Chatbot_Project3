@@ -17,3 +17,10 @@ func HashPassword(password string) (string, error) {
 func CheckPassword(password string, hashedPassword string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
+
+func ConfirmPassword(password string, confirmPassword string) error {
+	if password != confirmPassword {
+		return fmt.Errorf("passwords do not match")
+	}
+	return nil
+}

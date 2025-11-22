@@ -118,6 +118,40 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, 
 	return i, err
 }
 
+const getUserByExternalID = `-- name: GetUserByExternalID :one
+SELECT 
+  user_id, 
+  user_external_id, 
+  name, 
+  username, 
+  phone_number, 
+  email, 
+  hashed_password, 
+  role, 
+  created_at, 
+  updated_at 
+FROM users 
+WHERE user_external_id = $1 LIMIT 1
+`
+
+func (q *Queries) GetUserByExternalID(ctx context.Context, userExternalID uuid.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByExternalID, userExternalID)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.UserExternalID,
+		&i.Name,
+		&i.Username,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.HashedPassword,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getUserByUsername = `-- name: GetUserByUsername :one
 SELECT user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at FROM users
 WHERE username = $1

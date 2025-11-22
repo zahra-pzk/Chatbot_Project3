@@ -52,3 +52,18 @@ WHERE user_external_id = $1;
 -- name: DeleteUser :exec
 DELETE FROM users
 WHERE user_external_id = $1;
+
+-- name: GetUserByExternalID :one
+SELECT 
+  user_id, 
+  user_external_id, 
+  name, 
+  username, 
+  phone_number, 
+  email, 
+  hashed_password, 
+  role, 
+  created_at, 
+  updated_at 
+FROM users 
+WHERE user_external_id = $1 LIMIT 1;
