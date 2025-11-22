@@ -137,6 +137,30 @@ func (q *Queries) GetChatsByUser(ctx context.Context, arg GetChatsByUserParams) 
 	return items, nil
 }
 
+const getOpenChatByUser = `-- name: GetOpenChatByUser :one
+SELECT chat_id, chat_external_id, user_external_id, status, created_at, updated_at
+FROM chats
+WHERE user_external_id = $1
+  AND status IN ('open', 'pending')
+ORDER BY created_at DESC
+LIMIT 1
+FOR UPDATE
+`
+
+func (q *Queries) GetOpenChatByUser(ctx context.Context, userExternalID uuid.UUID) (Chat, error) {
+	row := q.db.QueryRow(ctx, getOpenChatByUser, userExternalID)
+	var i Chat
+	err := row.Scan(
+		&i.ChatID,
+		&i.ChatExternalID,
+		&i.UserExternalID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listChats = `-- name: ListChats :many
 SELECT chat_id, chat_external_id, user_external_id, status, created_at, updated_at FROM chats
 ORDER BY created_at DESC

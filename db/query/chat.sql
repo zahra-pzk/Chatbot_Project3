@@ -55,3 +55,13 @@ RETURNING *;
 -- name: DeleteChat :exec
 DELETE FROM chats
 WHERE chat_external_id = $1;
+
+-- name: GetOpenChatByUser :one
+SELECT chat_id, chat_external_id, user_external_id, status, created_at, updated_at
+FROM chats
+WHERE user_external_id = $1
+  AND status IN ('open', 'pending')
+ORDER BY created_at DESC
+LIMIT 1
+FOR UPDATE
+;

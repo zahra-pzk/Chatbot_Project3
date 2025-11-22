@@ -29,8 +29,6 @@ func main() {
 		log.Fatal("cannot create server:", err)
 	}
 
-	api.StartHub()
-
 	if err := server.Start(config.ServerAddress); err != nil {
 		log.Fatal("cannot start server:", err)
 	}
