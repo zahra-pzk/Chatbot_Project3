@@ -2,13 +2,16 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-
+var ErrOpenChatAlreadyExists = errors.New("open chat already exists")
 type StartChatTxParams struct {
 	UserExternalID uuid.UUID
 	Content        string
@@ -61,34 +64,44 @@ func (store *SQLStore) execTx(ctx context.Context, fn func(*Queries) error) erro
 
 
 func (store *SQLStore) CreateChatTx(ctx context.Context, arg StartChatTxParams) (StartChatTxResult, error) {
-	var result StartChatTxResult
+var result StartChatTxResult
+err := store.execTx(ctx, func(q *Queries) error {
+	var err error
 
-	err := store.execTx(ctx, func(q *Queries) error {
-		var err error
-		
-		result.Chat, err = q.CreateChatDefaults(ctx, arg.UserExternalID)
-		if err != nil {
-			return fmt.Errorf("store: failed to create chat: %w", err)
-		}
+        chat, err := q.GetOpenChatByUser(ctx, arg.UserExternalID)
+        if err == nil {
+            result.Chat = chat
+            return ErrOpenChatAlreadyExists
+        } else if err != sql.ErrNoRows {
+            return err
+        }
 
-		msgArg := CreateMessageParams{
-			ChatExternalID:   result.Chat.ChatExternalID,
-			SenderExternalID: arg.UserExternalID,
-			Content:          arg.Content,
-			IsSystemMessage:  false,
-		}
-		
-		result.Message, err = q.CreateMessage(ctx, msgArg)
-		if err != nil {
-			return fmt.Errorf("store: failed to create initial message: %w", err)
-		}
-
-		return nil
-	})
-
+	result.Chat, err = q.CreateChatDefaults(ctx, arg.UserExternalID)
 	if err != nil {
-		return StartChatTxResult{}, err
+		return fmt.Errorf("store: failed to create chat: %w", err)
 	}
 
-	return result, nil
+	msgArg := CreateMessageParams{
+		ChatExternalID:   result.Chat.ChatExternalID,
+		SenderExternalID: arg.UserExternalID,
+		Content:          arg.Content,
+		IsSystemMessage:  false,
+	}
+
+	result.Message, err = q.CreateMessage(ctx, msgArg)
+	if err != nil {
+		return fmt.Errorf("store: failed to create initial message: %w", err)
+	}
+
+	return nil
+})
+
+if err != nil {
+	if errors.Is(err, ErrOpenChatAlreadyExists) {
+		return result, ErrOpenChatAlreadyExists
+	}
+	return StartChatTxResult{}, err
+}
+
+return result, nil
 }
