@@ -1,5 +1,5 @@
 package token
-
+/*
 import (
 	"errors"
 	"fmt"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
+	db "github.com/zahra-pzk/Chatbot_Project3/db/sqlc"
 )
 
 const minSecretKeySize = 32
@@ -23,7 +24,7 @@ func NewJWTMaker(secretKey string) (Maker, error) {
 }
 
 func (maker *JWTMaker) CreateToken(userExternalID uuid.UUID, duration time.Duration) (string, error) {
-	payload, err := NewPayload(userExternalID,"", duration)
+	payload, err := NewPayload(userExternalID, "", "", duration)
 	if err != nil {
 		return "", err
 	}
@@ -52,3 +53,4 @@ func (maker *JWTMaker) VerifyToken(token string) (*Payload, error) {
 	}
 	return payload, nil
 }
+*/

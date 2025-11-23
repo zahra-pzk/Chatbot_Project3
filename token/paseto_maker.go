@@ -8,9 +8,10 @@ import (
 	"github.com/o1egl/paseto"
 	"golang.org/x/crypto/chacha20poly1305"
 )
+
 type PasetoMaker struct {
-	paseto			*paseto.V2
-	symmetricKey	[]byte
+	paseto       *paseto.V2
+	symmetricKey []byte
 }
 
 func NewPasetoMaker(symmetricKey string) (Maker, error) {
@@ -18,27 +19,30 @@ func NewPasetoMaker(symmetricKey string) (Maker, error) {
 		return nil, fmt.Errorf("invalid key size: must be exactly %d characters", chacha20poly1305.KeySize)
 	}
 	maker := &PasetoMaker{
-		paseto: paseto.NewV2(),
+		paseto:       paseto.NewV2(),
 		symmetricKey: []byte(symmetricKey),
 	}
 	return maker, nil
 }
 
-func (maker *PasetoMaker) CreateToken(userExternalID uuid.UUID, duration time.Duration) (string, error) {
-	payload, err := NewPayload(userExternalID,"", duration)
+func (maker *PasetoMaker) CreateToken(userExternalID uuid.UUID, username string, role string, duration time.Duration) (string, error) {
+	payload, err := NewPayload(userExternalID, username, role, duration)
 	if err != nil {
 		return "", err
 	}
 	return maker.paseto.Encrypt(maker.symmetricKey, payload, nil)
 }
 
-
 func (maker *PasetoMaker) VerifyToken(token string) (*Payload, error) {
 	payload := &Payload{}
 
 	err := maker.paseto.Decrypt(token, maker.symmetricKey, payload, nil)
 	if err != nil {
-	return nil, ErrInvalidToken
+		return nil, ErrInvalidToken
+	}
+	err = payload.Valid()
+	if err != nil {
+		return nil, err
 	}
 	return payload, nil
 }

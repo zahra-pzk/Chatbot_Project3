@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
+	"github.com/zahra-pzk/Chatbot_Project3/api/ws"
 	db "github.com/zahra-pzk/Chatbot_Project3/db/sqlc"
 	"github.com/zahra-pzk/Chatbot_Project3/token"
 	"github.com/zahra-pzk/Chatbot_Project3/util"
@@ -14,9 +15,12 @@ type Server struct {
 	store      *db.SQLStore
 	tokenMaker token.Maker
 	router     *gin.Engine
+	hub        *ws.Hub
 }
 
 func NewServer(config util.Config, store *db.SQLStore) (*Server, error) {
+	hub := ws.NewHub()
+	go hub.Run()
 	tokenMaker, err := token.NewPasetoMaker(config.TokenSymmetricKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create token maker: %w", err)
@@ -25,6 +29,7 @@ func NewServer(config util.Config, store *db.SQLStore) (*Server, error) {
 		config:     config,
 		store:      store,
 		tokenMaker: tokenMaker,
+		hub:        hub,
 	}
 
 	server.setupRouter()
@@ -40,6 +45,8 @@ func (server *Server) setupRouter() {
 	authRoutes := router.Group("/")
 	authRoutes.Use(authMiddleware(server.tokenMaker))
 
+	router.GET("/ws/chats/:chatExternalID", server.ServeWs)
+	
 	adminRoles := []db.RoleType{db.RoleTypeSuperadmin, db.RoleTypeAdmin}
 	adminRoutes := authRoutes.Group("/admin")
 	adminRoutes.Use(roleAuthMiddleware(server.store, adminRoles))
