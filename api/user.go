@@ -23,6 +23,7 @@ type createUserRequest struct {
 }
 
 type userResponse struct {
+	ExternalID  uuid.UUID `json:"user_external_id"`
 	Name        string    `json:"name"`
 	Username    string    `json:"username"`
 	PhoneNumber string    `json:"phone_number"`
@@ -71,6 +72,7 @@ func newUserResponse(user db.User) userResponse {
 		createdAt = user.CreatedAt.Time
 	}
 	return userResponse{
+		ExternalID:  user.UserExternalID,
 		Name:        user.Name,
 		Username:    username,
 		PhoneNumber: phone,
@@ -110,19 +112,14 @@ func (server *Server) createUser(ctx *gin.Context) {
 }
 
 func (server *Server) getUser(ctx *gin.Context) {
-	var req getUserRequest
-	if err := ctx.ShouldBindUri(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
-		return
-	}
-
-	userUUID, err := uuid.Parse(req.UserExternalID)
+	idStr := ctx.Param("userExternalID")
+	userUUID, err := uuid.Parse(idStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
 		return
 	}
 
-	user, err := server.store.GetUser(ctx, userUUID)
+	user, err := server.store.GetUserByExternalID(ctx, userUUID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, errorResponse(err))
@@ -131,7 +128,8 @@ func (server *Server) getUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
-	ctx.JSON(http.StatusOK, user)
+	rsp := newUserResponse(user)
+	ctx.JSON(http.StatusOK, rsp)
 }
 
 func (server *Server) listUsers(ctx *gin.Context) {
