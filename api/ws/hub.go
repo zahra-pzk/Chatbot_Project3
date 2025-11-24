@@ -30,8 +30,9 @@ func (h *Hub) Run() {
 		case client := <-h.Register:
 			if _, ok := h.Clients[client.ChatExternalID.String()]; !ok {
 				h.Clients[client.ChatExternalID.String()] = make(map[*Client]bool)
-				h.Clients[client.ChatExternalID.String()][client] = true
 			}
+			h.Clients[client.ChatExternalID.String()][client] = true
+
 		case client := <-h.Unregister:
 			if _, ok := h.Clients[client.ChatExternalID.String()]; ok {
 				delete(h.Clients[client.ChatExternalID.String()], client)
