@@ -4,11 +4,15 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-contrib/cors"
+	"github.com/google/uuid"
 	"github.com/zahra-pzk/Chatbot_Project3/api/ws"
 	db "github.com/zahra-pzk/Chatbot_Project3/db/sqlc"
 	"github.com/zahra-pzk/Chatbot_Project3/token"
 	"github.com/zahra-pzk/Chatbot_Project3/util"
 )
+
+var adminChannelID = uuid.Nil
 
 type Server struct {
 	config     util.Config
@@ -38,50 +42,52 @@ func NewServer(config util.Config, store *db.SQLStore) (*Server, error) {
 
 func (server *Server) setupRouter() {
 	router := gin.Default()
+	config := cors.DefaultConfig()
+	config.AllowAllOrigins = true
+	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
+	router.Use(cors.New(config))
+	router.SetTrustedProxies(nil)
 
 	router.POST("/users", server.createUser)
 	router.POST("/users/login", server.loginUser)
 
+	router.GET("/ws/chats/:chatExternalID", server.ServeWs)
+	router.GET("/ws/admin/chats", server.ServeAdminChatsWs)
+
 	authRoutes := router.Group("/")
 	authRoutes.Use(authMiddleware(server.tokenMaker))
 
-	router.GET("/ws/chats/:chatExternalID", server.ServeWs)
-	
 	adminRoles := []db.RoleType{db.RoleTypeSuperadmin, db.RoleTypeAdmin}
+
 	adminRoutes := authRoutes.Group("/admin")
 	adminRoutes.Use(roleAuthMiddleware(server.store, adminRoles))
 
-	adminRoutes.GET("/users/:userExternalID", server.getUser)
+	authRoutes.GET("/users/:userExternalID", userOrAdminMiddleware(server.store, adminRoles), server.getUser)
+	authRoutes.PATCH("/users/:userExternalID/password", userOrAdminMiddleware(server.store, adminRoles), server.updatePassword)
+
 	adminRoutes.GET("/users", server.listUsers)
 	adminRoutes.PUT("/users/:userExternalID", server.updateUser)
 	adminRoutes.DELETE("/users/:userExternalID", server.deleteUser)
 
-	authRoutes.PATCH("/users/:userExternalID/password",
-		userOrAdminMiddleware(server.store, adminRoles),
-		server.updatePassword)
-
 	authRoutes.POST("/chats", server.createChat)
 	authRoutes.GET("/chats/:chatExternalID", server.getChat)
-	authRoutes.GET("/chats/user",
-		userOrAdminMiddleware(server.store, adminRoles),
-		server.getChatsByUser)
+	authRoutes.GET("/chats/user", server.getChatsByUser)
+	authRoutes.PATCH("/chats/:chatExternalID/status", server.updateChatStatus)
+
 	adminRoutes.GET("/chats", server.listChats)
 	adminRoutes.DELETE("/chats/:chatExternalID", server.deleteChat)
-	authRoutes.PATCH("/chats/:chatExternalID/status", server.updateChatStatus)
 	adminRoutes.PATCH("/chats/:chatExternalID", server.updateChat)
 
 	authRoutes.POST("/messages", server.createMessage)
-	authRoutes.GET("/chats/:chatExternalID/messages",
-		userOrAdminMiddleware(server.store, adminRoles),
-		server.listMessagesByChat)
+	authRoutes.GET("/chats/:chatExternalID/messages", server.listMessagesByChat)
 	authRoutes.GET("/chats/:chatExternalID/messages/recent", server.listRecentMessagesByChat)
 	authRoutes.GET("/messages/:messageExternalID", server.getMessage)
+
 	adminRoutes.GET("/messages/:messageExternalID", server.getMessage)
 	adminRoutes.PATCH("/messages/:messageExternalID", server.updateMessage)
 	adminRoutes.DELETE("/messages/:messageExternalID", server.deleteMessage)
 
 	server.router = router
-
 }
 
 func (server *Server) Start(address string) error {
