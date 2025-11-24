@@ -29,6 +29,16 @@ type Client struct {
 	Role           db.RoleType
 }
 
+type IncomingMessage struct {
+	Content string `json:"content"`
+}
+
+type OutgoingMessage struct {
+	Content          string    `json:"content"`
+	SenderExternalID uuid.UUID `json:"sender_external_id"`
+	CreatedAt        string    `json:"created_at"`
+}
+
 func (c *Client) ReadPump() {
 	defer func() { c.Hub.Unregister <- c; c.Conn.Close() }()
 	c.Conn.SetReadLimit(maxMessageSize)
@@ -43,17 +53,22 @@ func (c *Client) ReadPump() {
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("unexpected close error: %v", err)
-			} else {
-				log.Printf("error in reading msg: %v", err)
 			}
 			break
 		}
 		message = bytes.TrimSpace(message)
 
+		var incomingMsg IncomingMessage
+		if err := json.Unmarshal(message, &incomingMsg); err != nil {
+			log.Printf("error parsing message JSON: %v", err)
+			continue
+		}
+
 		arg := db.CreateMessageParams{
 			ChatExternalID:   c.ChatExternalID,
 			SenderExternalID: c.UserExternalID,
-			Content:          string(message),
+			Content:          incomingMsg.Content,
+			IsSystemMessage:  false,
 		}
 
 		msg, err := c.Store.CreateMessage(context.Background(), arg)
@@ -61,8 +76,19 @@ func (c *Client) ReadPump() {
 			log.Printf("error creating message: %v", err)
 			continue
 		}
-		jsonBytes, _ := json.Marshal(msg)
-		c.Hub.Broadcast <- BroadcastMessage{ChatExternalID: c.ChatExternalID, Data: jsonBytes}
+
+		outMsg := OutgoingMessage{
+			Content:          msg.Content,
+			SenderExternalID: msg.SenderExternalID,
+			CreatedAt:        msg.CreatedAt.Time.Format(time.RFC3339),
+		}
+
+		jsonBytes, _ := json.Marshal(outMsg)
+
+		c.Hub.Broadcast <- BroadcastMessage{
+			ChatExternalID: c.ChatExternalID,
+			Data:           jsonBytes,
+		}
 	}
 }
 
