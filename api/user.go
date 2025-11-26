@@ -93,21 +93,23 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 
-	arg := db.CreateUserParams{
-		Name:           req.Name,
-		Username:       pgtype.Text{String: req.Username, Valid: req.Username != ""},
-		PhoneNumber:    pgtype.Text{String: req.PhoneNumber, Valid: req.PhoneNumber != ""},
-		Email:          pgtype.Text{String: req.Email, Valid: req.Email != ""},
-		HashedPassword: pgtype.Text{String: hashedPassword, Valid: hashedPassword != ""},
-		Role:           req.Role,
+	arg := db.CreateUserTxParams{
+		CreateUserParams: db.CreateUserParams{
+			Name:           req.Name,
+			Username:       pgtype.Text{String: req.Username, Valid: req.Username != ""},
+			PhoneNumber:    pgtype.Text{String: req.PhoneNumber, Valid: req.PhoneNumber != ""},
+			Email:          pgtype.Text{String: req.Email, Valid: req.Email != ""},
+			HashedPassword: pgtype.Text{String: hashedPassword, Valid: hashedPassword != ""},
+			Role:           req.Role,
+		},
 	}
 
-	user, err := server.store.CreateUser(ctx, arg)
+	result, err := server.store.CreateUserTx(ctx, arg)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
-	rsp := newUserResponse(user)
+	rsp := newUserResponse(result.User)
 	ctx.JSON(http.StatusOK, rsp)
 }
 
