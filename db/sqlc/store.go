@@ -12,6 +12,15 @@ import (
 )
 
 var ErrOpenChatAlreadyExists = errors.New("open chat already exists")
+
+type CreateUserTxParams struct {
+	CreateUserParams
+}
+
+type CreateUserTxResult struct {
+	User        User
+	UserAccount UserAccount
+}
 type StartChatTxParams struct {
 	UserExternalID uuid.UUID
 	Content        string
@@ -24,7 +33,8 @@ type StartChatTxResult struct {
 
 type Store interface {
 	Querier
-    CreateChatTx(ctx context.Context, arg StartChatTxParams) (StartChatTxResult, error) 
+	CreateChatTx(ctx context.Context, arg StartChatTxParams) (StartChatTxResult, error)
+	CreateUserTx(ctx context.Context, arg CreateUserTxParams) (CreateUserTxResult, error)
 }
 
 type SQLStore struct {
@@ -62,46 +72,67 @@ func (store *SQLStore) execTx(ctx context.Context, fn func(*Queries) error) erro
 	return nil
 }
 
-
 func (store *SQLStore) CreateChatTx(ctx context.Context, arg StartChatTxParams) (StartChatTxResult, error) {
-var result StartChatTxResult
-err := store.execTx(ctx, func(q *Queries) error {
-	var err error
+	var result StartChatTxResult
+	err := store.execTx(ctx, func(q *Queries) error {
+		var err error
 
-        chat, err := q.GetOpenChatByUser(ctx, arg.UserExternalID)
-        if err == nil {
-            result.Chat = chat
-            return ErrOpenChatAlreadyExists
-        } else if err != sql.ErrNoRows {
-            return err
-        }
+		chat, err := q.GetOpenChatByUser(ctx, arg.UserExternalID)
+		if err == nil {
+			result.Chat = chat
+			return ErrOpenChatAlreadyExists
+		} else if err != sql.ErrNoRows {
+			return err
+		}
 
-	result.Chat, err = q.CreateChatDefaults(ctx, arg.UserExternalID)
+		result.Chat, err = q.CreateChatDefaults(ctx, arg.UserExternalID)
+		if err != nil {
+			return fmt.Errorf("store: failed to create chat: %w", err)
+		}
+
+		msgArg := CreateMessageParams{
+			ChatExternalID:   result.Chat.ChatExternalID,
+			SenderExternalID: arg.UserExternalID,
+			Content:          arg.Content,
+			IsSystemMessage:  false,
+		}
+
+		result.Message, err = q.CreateMessage(ctx, msgArg)
+		if err != nil {
+			return fmt.Errorf("store: failed to create initial message: %w", err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return fmt.Errorf("store: failed to create chat: %w", err)
+		if errors.Is(err, ErrOpenChatAlreadyExists) {
+			return result, ErrOpenChatAlreadyExists
+		}
+		return StartChatTxResult{}, err
 	}
 
-	msgArg := CreateMessageParams{
-		ChatExternalID:   result.Chat.ChatExternalID,
-		SenderExternalID: arg.UserExternalID,
-		Content:          arg.Content,
-		IsSystemMessage:  false,
-	}
-
-	result.Message, err = q.CreateMessage(ctx, msgArg)
-	if err != nil {
-		return fmt.Errorf("store: failed to create initial message: %w", err)
-	}
-
-	return nil
-})
-
-if err != nil {
-	if errors.Is(err, ErrOpenChatAlreadyExists) {
-		return result, ErrOpenChatAlreadyExists
-	}
-	return StartChatTxResult{}, err
+	return result, nil
 }
 
-return result, nil
+func (store *SQLStore) CreateUserTx(ctx context.Context, arg CreateUserTxParams) (CreateUserTxResult, error) {
+	var result CreateUserTxResult
+
+	err := store.execTx(ctx, func(q *Queries) error {
+		var err error
+
+		result.User, err = q.CreateUser(ctx, arg.CreateUserParams)
+		if err != nil {
+			return err
+		}
+
+		result.UserAccount, err = q.CreateUserAccount(ctx, result.User.UserExternalID)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	return result, err
 }
