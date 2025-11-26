@@ -30,4 +30,10 @@ type Querier interface {
 	ListMessagesByChat(ctx context.Context, arg ListMessagesByChatParams) ([]Message, error)
 	ListRecentMessagesByChat(ctx context.Context, arg ListRecentMessagesByChatParams) ([]Message, error)
 	UpdateMessage(ctx context.Context, arg UpdateMessageParams) (Message, error)
+	CreateUserAccount(ctx context.Context, userExternalID uuid.UUID) (UserAccount, error)
+	DeleteUserAccount(ctx context.Context, accountExternalID uuid.UUID) error
+	GetUserAccountByAccountID(ctx context.Context, accountExternalID uuid.UUID) (GetUserAccountByAccountIDRow, error)
+	GetUserAccountByExternalID(ctx context.Context, userExternalID uuid.UUID) (GetUserAccountByExternalIDRow, error)
+	UpdateUserAccountProfile(ctx context.Context, arg UpdateUserAccountProfileParams) (UserAccount, error)
+	UpdateUserAccountStatus(ctx context.Context, arg UpdateUserAccountStatusParams) (UserAccount, error)
 }
