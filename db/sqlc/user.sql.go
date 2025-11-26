@@ -281,3 +281,37 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 	_, err := q.db.Exec(ctx, updateUserPassword, arg.UserExternalID, arg.HashedPassword)
 	return err
 }
+
+const userUpdateUsernameAndEmail = `-- name: UserUpdateUsernameAndEmail :one
+UPDATE users
+SET
+    username = $2,
+    email = $3,
+    updated_at = NOW()
+WHERE user_external_id = $1
+RETURNING user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at
+`
+
+type UserUpdateUsernameAndEmailParams struct {
+	UserExternalID uuid.UUID   `json:"user_external_id"`
+	Username       pgtype.Text `json:"username"`
+	Email          pgtype.Text `json:"email"`
+}
+
+func (q *Queries) UserUpdateUsernameAndEmail(ctx context.Context, arg UserUpdateUsernameAndEmailParams) (User, error) {
+	row := q.db.QueryRow(ctx, userUpdateUsernameAndEmail, arg.UserExternalID, arg.Username, arg.Email)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.UserExternalID,
+		&i.Name,
+		&i.Username,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.HashedPassword,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

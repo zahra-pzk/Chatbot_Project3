@@ -12,6 +12,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AccountStatus string
+
+const (
+	AccountStatusIncomplete           AccountStatus = "incomplete"
+	AccountStatusAwaitingVerification AccountStatus = "awaiting_verification"
+	AccountStatusVerified             AccountStatus = "verified"
+	AccountStatusDisapproved          AccountStatus = "disapproved"
+	AccountStatusSuspended            AccountStatus = "suspended"
+)
+
+func (e *AccountStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AccountStatus(s)
+	case string:
+		*e = AccountStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AccountStatus: %T", src)
+	}
+	return nil
+}
+
+type NullAccountStatus struct {
+	AccountStatus AccountStatus `json:"account_status"`
+	Valid         bool          `json:"valid"` // Valid is true if AccountStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAccountStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.AccountStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AccountStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAccountStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AccountStatus), nil
+}
+
 type ChatStatusType string
 
 const (
@@ -131,4 +176,14 @@ type User struct {
 	Role           string           `json:"role"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
+}
+
+type UserAccount struct {
+	AccountID         pgtype.Int8      `json:"account_id"`
+	AccountExternalID uuid.UUID        `json:"account_external_id"`
+	UserExternalID    uuid.UUID        `json:"user_external_id"`
+	Status            AccountStatus    `json:"status"`
+	BirthDate         pgtype.Date      `json:"birth_date"`
+	Photos            []string         `json:"photos"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
 }
