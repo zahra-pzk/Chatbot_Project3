@@ -53,6 +53,7 @@ SELECT
     u.username,
     u.email,
     u.role,
+    u.phone_number,
     a.account_external_id,
     a.status,
     a.birth_date,
@@ -69,6 +70,7 @@ type GetUserAccountByAccountIDRow struct {
 	Username          pgtype.Text   `json:"username"`
 	Email             pgtype.Text   `json:"email"`
 	Role              string        `json:"role"`
+	PhoneNumber       pgtype.Text   `json:"phone_number"`
 	AccountExternalID uuid.UUID     `json:"account_external_id"`
 	Status            AccountStatus `json:"status"`
 	BirthDate         pgtype.Date   `json:"birth_date"`
@@ -83,6 +85,7 @@ func (q *Queries) GetUserAccountByAccountID(ctx context.Context, accountExternal
 		&i.Username,
 		&i.Email,
 		&i.Role,
+		&i.PhoneNumber,
 		&i.AccountExternalID,
 		&i.Status,
 		&i.BirthDate,
@@ -97,10 +100,12 @@ SELECT
     u.username,
     u.email,
     u.role,
+    u.phone_number,
     a.account_external_id,
     a.status,
     a.birth_date,
-    a.photos
+    a.photos,
+    u.created_at
 FROM users u
 INNER JOIN user_account a 
     ON u.user_external_id = a.user_external_id
@@ -109,14 +114,16 @@ LIMIT 1
 `
 
 type GetUserAccountByExternalIDRow struct {
-	Name              string        `json:"name"`
-	Username          pgtype.Text   `json:"username"`
-	Email             pgtype.Text   `json:"email"`
-	Role              string        `json:"role"`
-	AccountExternalID uuid.UUID     `json:"account_external_id"`
-	Status            AccountStatus `json:"status"`
-	BirthDate         pgtype.Date   `json:"birth_date"`
-	Photos            []string      `json:"photos"`
+	Name              string           `json:"name"`
+	Username          pgtype.Text      `json:"username"`
+	Email             pgtype.Text      `json:"email"`
+	Role              string           `json:"role"`
+	PhoneNumber       pgtype.Text      `json:"phone_number"`
+	AccountExternalID uuid.UUID        `json:"account_external_id"`
+	Status            AccountStatus    `json:"status"`
+	BirthDate         pgtype.Date      `json:"birth_date"`
+	Photos            []string         `json:"photos"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
 }
 
 func (q *Queries) GetUserAccountByExternalID(ctx context.Context, userExternalID uuid.UUID) (GetUserAccountByExternalIDRow, error) {
@@ -127,10 +134,12 @@ func (q *Queries) GetUserAccountByExternalID(ctx context.Context, userExternalID
 		&i.Username,
 		&i.Email,
 		&i.Role,
+		&i.PhoneNumber,
 		&i.AccountExternalID,
 		&i.Status,
 		&i.BirthDate,
 		&i.Photos,
+		&i.CreatedAt,
 	)
 	return i, err
 }

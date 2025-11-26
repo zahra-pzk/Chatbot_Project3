@@ -13,10 +13,12 @@ SELECT
     u.username,
     u.email,
     u.role,
+    u.phone_number,
     a.account_external_id,
     a.status,
     a.birth_date,
-    a.photos
+    a.photos,
+    u.created_at
 FROM users u
 INNER JOIN user_account a 
     ON u.user_external_id = a.user_external_id
@@ -29,6 +31,7 @@ SELECT
     u.username,
     u.email,
     u.role,
+    u.phone_number,
     a.account_external_id,
     a.status,
     a.birth_date,

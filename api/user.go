@@ -30,6 +30,9 @@ type userResponse struct {
 	Email       string    `json:"email"`
 	Role        string    `json:"role"`
 	CreatedAt   time.Time `json:"created_at"`
+	Status      string    `json:"status"`
+	BirthDate   time.Time `json:"birth_date"`
+	Photos      []string  `json:"photos"`
 }
 
 type getUserRequest struct {
@@ -81,6 +84,41 @@ func newUserResponse(user db.User) userResponse {
 		CreatedAt:   createdAt,
 	}
 }
+
+func newUserProfileResponse(data db.GetUserAccountByExternalIDRow) userResponse {
+	var username, phone, email string
+	if data.Username.Valid {
+		username = data.Username.String
+	}
+
+	if data.PhoneNumber.Valid {
+		phone = data.PhoneNumber.String
+	}
+	if data.Email.Valid {
+		email = data.Email.String
+	}
+	var birthDate time.Time
+	if data.BirthDate.Valid {
+		birthDate = data.BirthDate.Time
+	}
+
+	var createdAt time.Time
+	if data.CreatedAt.Valid {
+		createdAt = data.CreatedAt.Time
+	}
+	return userResponse{
+		ExternalID:  data.AccountExternalID,
+		Name:        data.Name,
+		Username:    username,
+		PhoneNumber: phone,
+		Email:       email,
+		Role:        data.Role,
+		Status:      string(data.Status),
+		BirthDate:   birthDate,
+		Photos:      data.Photos,
+		CreatedAt:   createdAt,
+	}
+}
 func (server *Server) createUser(ctx *gin.Context) {
 	var req createUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -121,7 +159,7 @@ func (server *Server) getUser(ctx *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUserByExternalID(ctx, userUUID)
+	userProfile, err := server.store.GetUserAccountByExternalID(ctx, userUUID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, errorResponse(err))
@@ -130,7 +168,7 @@ func (server *Server) getUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
-	rsp := newUserResponse(user)
+	rsp := newUserProfileResponse(userProfile)
 	ctx.JSON(http.StatusOK, rsp)
 }
 
