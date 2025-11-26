@@ -67,3 +67,12 @@ SELECT
   updated_at 
 FROM users 
 WHERE user_external_id = $1 LIMIT 1;
+
+-- name: UserUpdateUsernameAndEmail :one
+UPDATE users
+SET
+    username = $2,
+    email = $3,
+    updated_at = NOW()
+WHERE user_external_id = $1
+RETURNING *;
