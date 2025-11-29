@@ -12,6 +12,14 @@ type Config struct {
 	ServerAddress       string        `mapstructure:"SERVER_ADDRESS"`
 	TokenSymmetricKey   string        `mapstructure:"TOKEN_SYMMETRIC_KEY"`
 	AccessTokenDuration time.Duration `mapstructure:"ACCESS_TOKEN_DURATION"`
+	AIBaseURL           string        `mapstructure:"AIBaseURL"`
+	AIAPIKey            string        `mapstructure:"AI_API_KEY"`
+	APIURL              string        `mapstructure:"API_URL"`
+	WS_URL              string        `mapstructure:"WS_URL"`
+	BotUsername         string        `mapstructure:"BOT_USERNAME"`
+	BotPass             string        `mapstructure:"BOT_PASSWORD"`
+	ChunkSize           int64         `mapstructure:"ChunkSize"`
+	ChunkOverlap        int64         `mapstructure:"ChunkOverlap"`
 }
 
 func LoadConfig(path string) (config Config, err error) {
