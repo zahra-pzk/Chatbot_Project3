@@ -5,8 +5,9 @@ CREATE TYPE chat_status_type AS ENUM ('open', 'pending', 'closed');
 CREATE TABLE chats (
     chat_id             BIGSERIAL,
     chat_external_id    UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_external_id    UUID                NOT NULL, 
-    status              chat_status_type    NOT NULL DEFAULT 'open',
+    user_external_id    UUID                NOT NULL,
+    label               VARCHAR(255)        NOT NULL,
+    status              chat_status_type    NOT NULL DEFAULT 'pending',
     created_at  TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     updated_at  TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     CONSTRAINT fk_chats_user
