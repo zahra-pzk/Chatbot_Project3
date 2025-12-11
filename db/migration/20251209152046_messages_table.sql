@@ -7,6 +7,7 @@ CREATE TABLE messages (
     sender_external_id      UUID            NOT NULL, 
     content                 TEXT            NOT NULL,
     is_system_message       BOOLEAN         NOT NULL DEFAULT FALSE,
+    is_admin_message        BOOLEAN         NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITHOUT TIME ZONE  NOT NULL,
     updated_at TIMESTAMP WITHOUT TIME ZONE  NOT NULL,
     CONSTRAINT fk_messages_chat

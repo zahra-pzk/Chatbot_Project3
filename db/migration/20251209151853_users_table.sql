@@ -13,11 +13,12 @@ CREATE TABLE users (
     email               VARCHAR(255)        UNIQUE NOT NULL,
     hashed_password     TEXT,
     role                role_type           NOT NULL DEFAULT 'guest', 
-    created_at  TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    updated_at  TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    created_at          TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    updated_at          TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     status              account_status      NOT NULL DEFAULT 'incomplete',
     birth_date          DATE,
     photos              TEXT[]              DEFAULT '{}',
+    last_seen           TIMESTAMPTZ,
     CONSTRAINT max_photos_check             CHECK (array_length(photos, 1) <= 10),
     CONSTRAINT check_birth_date_max         CHECK (birth_date <= updated_at::DATE),
     CONSTRAINT check_birth_date_min         CHECK (birth_date >= (updated_at - INTERVAL '120 years')::DATE)
@@ -25,10 +26,12 @@ CREATE TABLE users (
 
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_account_status ON users(status);
+CREATE INDEX idx_users_last_seen ON users(last_seen);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+DROP INDEX IF EXISTS idx_users_last_seen;
 DROP INDEX IF EXISTS idx_users_role;
 DROP TYPE IF EXISTS role_type;
 DROP INDEX IF EXISTS idx_account_status;

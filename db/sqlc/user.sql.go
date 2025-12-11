@@ -12,45 +12,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (
-    name,
-    username,
-    phone_number,
-    email,
-    hashed_password,
-    role,
-    created_at,
-    updated_at
-) VALUES (
-    $1, $2, $3, $4, $5, $6, NOW(), NOW()
-)
-RETURNING user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at
+const addPhotoToUserProfile = `-- name: AddPhotoToUserProfile :one
+UPDATE users
+SET  
+    photos = array_append(photos, $2),
+    updated_at = NOW()
+WHERE user_external_id = $1
+RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos, last_seen
 `
 
-type CreateUserParams struct {
-	Name           string      `json:"name"`
-	Username       pgtype.Text `json:"username"`
-	PhoneNumber    pgtype.Text `json:"phone_number"`
-	Email          pgtype.Text `json:"email"`
-	HashedPassword pgtype.Text `json:"hashed_password"`
-	Role           string      `json:"role"`
+type AddPhotoToUserProfileParams struct {
+	UserExternalID uuid.UUID   `json:"user_external_id"`
+	ArrayAppend    interface{} `json:"array_append"`
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser,
-		arg.Name,
-		arg.Username,
-		arg.PhoneNumber,
-		arg.Email,
-		arg.HashedPassword,
-		arg.Role,
-	)
+func (q *Queries) AddPhotoToUserProfile(ctx context.Context, arg AddPhotoToUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, addPhotoToUserProfile, arg.UserExternalID, arg.ArrayAppend)
 	var i User
 	err := row.Scan(
 		&i.UserID,
 		&i.UserExternalID,
-		&i.Name,
+		&i.FirstName,
+		&i.LastName,
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
@@ -58,6 +41,189 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+		&i.LastSeen,
+	)
+	return i, err
+}
+
+const addPhotosToUserProfile = `-- name: AddPhotosToUserProfile :one
+UPDATE users
+SET 
+    photos = photos || $2,
+    updated_at = NOW()
+WHERE user_external_id = $1
+RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos, last_seen
+`
+
+type AddPhotosToUserProfileParams struct {
+	UserExternalID uuid.UUID `json:"user_external_id"`
+	Photos         []string  `json:"photos"`
+}
+
+func (q *Queries) AddPhotosToUserProfile(ctx context.Context, arg AddPhotosToUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, addPhotosToUserProfile, arg.UserExternalID, arg.Photos)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.UserExternalID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Username,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.HashedPassword,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+		&i.LastSeen,
+	)
+	return i, err
+}
+
+const createGuestUser = `-- name: CreateGuestUser :one
+INSERT INTO users (
+    first_name,
+    last_name,
+    email,
+    role,
+    created_at,
+    updated_at
+) VALUES (
+    $1, $2, $3, 'guest', NOW(), NOW()
+)
+RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos
+`
+
+type CreateGuestUserParams struct {
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
+}
+
+type CreateGuestUserRow struct {
+	UserID         pgtype.Int8      `json:"user_id"`
+	UserExternalID uuid.UUID        `json:"user_external_id"`
+	FirstName      string           `json:"first_name"`
+	LastName       string           `json:"last_name"`
+	Username       pgtype.Text      `json:"username"`
+	PhoneNumber    pgtype.Text      `json:"phone_number"`
+	Email          string           `json:"email"`
+	HashedPassword pgtype.Text      `json:"hashed_password"`
+	Role           string           `json:"role"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
+	Status         AccountStatus    `json:"status"`
+	BirthDate      pgtype.Date      `json:"birth_date"`
+	Photos         []string         `json:"photos"`
+}
+
+func (q *Queries) CreateGuestUser(ctx context.Context, arg CreateGuestUserParams) (CreateGuestUserRow, error) {
+	row := q.db.QueryRow(ctx, createGuestUser, arg.FirstName, arg.LastName, arg.Email)
+	var i CreateGuestUserRow
+	err := row.Scan(
+		&i.UserID,
+		&i.UserExternalID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Username,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.HashedPassword,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+	)
+	return i, err
+}
+
+const createUser = `-- name: CreateUser :one
+INSERT INTO users (
+    first_name,
+    last_name,
+    username,
+    phone_number,
+    email,
+    hashed_password,
+    role,
+    status,
+    birth_date,
+    photos,
+    created_at,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'incomplete'), $9, $10, NOW(), NOW()
+)
+RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos
+`
+
+type CreateUserParams struct {
+	FirstName      string      `json:"first_name"`
+	LastName       string      `json:"last_name"`
+	Username       pgtype.Text `json:"username"`
+	PhoneNumber    pgtype.Text `json:"phone_number"`
+	Email          string      `json:"email"`
+	HashedPassword pgtype.Text `json:"hashed_password"`
+	Role           string      `json:"role"`
+	Column8        interface{} `json:"column_8"`
+	BirthDate      pgtype.Date `json:"birth_date"`
+	Photos         []string    `json:"photos"`
+}
+
+type CreateUserRow struct {
+	UserID         pgtype.Int8      `json:"user_id"`
+	UserExternalID uuid.UUID        `json:"user_external_id"`
+	FirstName      string           `json:"first_name"`
+	LastName       string           `json:"last_name"`
+	Username       pgtype.Text      `json:"username"`
+	PhoneNumber    pgtype.Text      `json:"phone_number"`
+	Email          string           `json:"email"`
+	HashedPassword pgtype.Text      `json:"hashed_password"`
+	Role           string           `json:"role"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
+	Status         AccountStatus    `json:"status"`
+	BirthDate      pgtype.Date      `json:"birth_date"`
+	Photos         []string         `json:"photos"`
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
+	row := q.db.QueryRow(ctx, createUser,
+		arg.FirstName,
+		arg.LastName,
+		arg.Username,
+		arg.PhoneNumber,
+		arg.Email,
+		arg.HashedPassword,
+		arg.Role,
+		arg.Column8,
+		arg.BirthDate,
+		arg.Photos,
+	)
+	var i CreateUserRow
+	err := row.Scan(
+		&i.UserID,
+		&i.UserExternalID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Username,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.HashedPassword,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
 	)
 	return i, err
 }
@@ -73,8 +239,10 @@ func (q *Queries) DeleteUser(ctx context.Context, userExternalID uuid.UUID) erro
 }
 
 const getUser = `-- name: GetUser :one
-SELECT user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at FROM users
+SELECT user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos, last_seen
+FROM users
 WHERE user_external_id = $1
+LIMIT 1
 `
 
 func (q *Queries) GetUser(ctx context.Context, userExternalID uuid.UUID) (User, error) {
@@ -83,7 +251,8 @@ func (q *Queries) GetUser(ctx context.Context, userExternalID uuid.UUID) (User, 
 	err := row.Scan(
 		&i.UserID,
 		&i.UserExternalID,
-		&i.Name,
+		&i.FirstName,
+		&i.LastName,
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
@@ -91,22 +260,29 @@ func (q *Queries) GetUser(ctx context.Context, userExternalID uuid.UUID) (User, 
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+		&i.LastSeen,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at FROM users
+SELECT user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos, last_seen
+FROM users
 WHERE email = $1
+LIMIT 1
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, error) {
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i User
 	err := row.Scan(
 		&i.UserID,
 		&i.UserExternalID,
-		&i.Name,
+		&i.FirstName,
+		&i.LastName,
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
@@ -114,6 +290,10 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, 
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+		&i.LastSeen,
 	)
 	return i, err
 }
@@ -122,16 +302,22 @@ const getUserByExternalID = `-- name: GetUserByExternalID :one
 SELECT 
   user_id, 
   user_external_id, 
-  name, 
+  first_name,
+  last_name, 
   username, 
   phone_number, 
   email, 
-  hashed_password, 
+  hashed_password,
   role, 
   created_at, 
-  updated_at 
+  updated_at,
+  status, 
+  birth_date, 
+  photos,
+  last_seen
 FROM users 
-WHERE user_external_id = $1 LIMIT 1
+WHERE user_external_id = $1
+LIMIT 1
 `
 
 func (q *Queries) GetUserByExternalID(ctx context.Context, userExternalID uuid.UUID) (User, error) {
@@ -140,7 +326,8 @@ func (q *Queries) GetUserByExternalID(ctx context.Context, userExternalID uuid.U
 	err := row.Scan(
 		&i.UserID,
 		&i.UserExternalID,
-		&i.Name,
+		&i.FirstName,
+		&i.LastName,
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
@@ -148,13 +335,49 @@ func (q *Queries) GetUserByExternalID(ctx context.Context, userExternalID uuid.U
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+		&i.LastSeen,
+	)
+	return i, err
+}
+
+const getUserByPhoneNumber = `-- name: GetUserByPhoneNumber :one
+SELECT user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos, last_seen
+FROM users
+WHERE phone_number = $1
+LIMIT 1
+`
+
+func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.Text) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByPhoneNumber, phoneNumber)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.UserExternalID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Username,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.HashedPassword,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+		&i.LastSeen,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at FROM users
+SELECT user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos, last_seen
+FROM users
 WHERE username = $1
+LIMIT 1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (User, error) {
@@ -163,7 +386,8 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (
 	err := row.Scan(
 		&i.UserID,
 		&i.UserExternalID,
-		&i.Name,
+		&i.FirstName,
+		&i.LastName,
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
@@ -171,12 +395,17 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+		&i.LastSeen,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at FROM users
+SELECT user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos, last_seen
+FROM users
 ORDER BY created_at DESC
 LIMIT $1
 OFFSET $2
@@ -199,7 +428,8 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 		if err := rows.Scan(
 			&i.UserID,
 			&i.UserExternalID,
-			&i.Name,
+			&i.FirstName,
+			&i.LastName,
 			&i.Username,
 			&i.PhoneNumber,
 			&i.Email,
@@ -207,6 +437,10 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.Role,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Status,
+			&i.BirthDate,
+			&i.Photos,
+			&i.LastSeen,
 		); err != nil {
 			return nil, err
 		}
@@ -221,39 +455,52 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET
-    name = $2,
-    username = $3,
-    phone_number = $4,
-    email = $5,
-    role = $6,
+    first_name = COALESCE(NULLIF($2, ''), first_name),
+    last_name = COALESCE(NULLIF($3, ''), last_name),
+    username = COALESCE(NULLIF($4, ''), username),
+    phone_number = COALESCE(NULLIF($5, ''), phone_number),
+    email = COALESCE(NULLIF($6, ''), email),
+    role = COALESCE($7, role),
+    status = COALESCE($8, status),
+    birth_date = COALESCE($9, birth_date),
+    photos = COALESCE($10, photos),
     updated_at = NOW()
 WHERE user_external_id = $1
-RETURNING user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at
+RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos, last_seen
 `
 
 type UpdateUserParams struct {
-	UserExternalID uuid.UUID   `json:"user_external_id"`
-	Name           string      `json:"name"`
-	Username       pgtype.Text `json:"username"`
-	PhoneNumber    pgtype.Text `json:"phone_number"`
-	Email          pgtype.Text `json:"email"`
-	Role           string      `json:"role"`
+	UserExternalID uuid.UUID     `json:"user_external_id"`
+	Column2        interface{}   `json:"column_2"`
+	Column3        interface{}   `json:"column_3"`
+	Column4        interface{}   `json:"column_4"`
+	Column5        interface{}   `json:"column_5"`
+	Column6        interface{}   `json:"column_6"`
+	Role           string        `json:"role"`
+	Status         AccountStatus `json:"status"`
+	BirthDate      pgtype.Date   `json:"birth_date"`
+	Photos         []string      `json:"photos"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, updateUser,
 		arg.UserExternalID,
-		arg.Name,
-		arg.Username,
-		arg.PhoneNumber,
-		arg.Email,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+		arg.Column6,
 		arg.Role,
+		arg.Status,
+		arg.BirthDate,
+		arg.Photos,
 	)
 	var i User
 	err := row.Scan(
 		&i.UserID,
 		&i.UserExternalID,
-		&i.Name,
+		&i.FirstName,
+		&i.LastName,
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
@@ -261,6 +508,10 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+		&i.LastSeen,
 	)
 	return i, err
 }
@@ -282,29 +533,28 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 	return err
 }
 
-const userUpdateUsernameAndEmail = `-- name: UserUpdateUsernameAndEmail :one
+const updateUserRole = `-- name: UpdateUserRole :one
 UPDATE users
 SET
-    username = $2,
-    email = $3,
+    role = $2,
     updated_at = NOW()
 WHERE user_external_id = $1
-RETURNING user_id, user_external_id, name, username, phone_number, email, hashed_password, role, created_at, updated_at
+RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos, last_seen
 `
 
-type UserUpdateUsernameAndEmailParams struct {
-	UserExternalID uuid.UUID   `json:"user_external_id"`
-	Username       pgtype.Text `json:"username"`
-	Email          pgtype.Text `json:"email"`
+type UpdateUserRoleParams struct {
+	UserExternalID uuid.UUID `json:"user_external_id"`
+	Role           string    `json:"role"`
 }
 
-func (q *Queries) UserUpdateUsernameAndEmail(ctx context.Context, arg UserUpdateUsernameAndEmailParams) (User, error) {
-	row := q.db.QueryRow(ctx, userUpdateUsernameAndEmail, arg.UserExternalID, arg.Username, arg.Email)
+func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserRole, arg.UserExternalID, arg.Role)
 	var i User
 	err := row.Scan(
 		&i.UserID,
 		&i.UserExternalID,
-		&i.Name,
+		&i.FirstName,
+		&i.LastName,
 		&i.Username,
 		&i.PhoneNumber,
 		&i.Email,
@@ -312,6 +562,47 @@ func (q *Queries) UserUpdateUsernameAndEmail(ctx context.Context, arg UserUpdate
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+		&i.LastSeen,
+	)
+	return i, err
+}
+
+const updateUserStatus = `-- name: UpdateUserStatus :one
+UPDATE users
+SET
+    status = $2,
+    updated_at = NOW()
+WHERE user_external_id = $1
+RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos, last_seen
+`
+
+type UpdateUserStatusParams struct {
+	UserExternalID uuid.UUID     `json:"user_external_id"`
+	Status         AccountStatus `json:"status"`
+}
+
+func (q *Queries) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserStatus, arg.UserExternalID, arg.Status)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.UserExternalID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Username,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.HashedPassword,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.BirthDate,
+		&i.Photos,
+		&i.LastSeen,
 	)
 	return i, err
 }

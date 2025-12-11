@@ -18,9 +18,9 @@ type CreateUserTxParams struct {
 }
 
 type CreateUserTxResult struct {
-	User        User
-	UserAccount UserAccount
+	User CreateUserRow
 }
+
 type StartChatTxParams struct {
 	UserExternalID uuid.UUID
 	Content        string
@@ -28,18 +28,21 @@ type StartChatTxParams struct {
 
 type StartChatTxResult struct {
 	Chat    Chat
-	Message Message
+	Message CreateMessageRow
 }
 
 type Store interface {
 	Querier
 	CreateChatTx(ctx context.Context, arg StartChatTxParams) (StartChatTxResult, error)
 	CreateUserTx(ctx context.Context, arg CreateUserTxParams) (CreateUserTxResult, error)
+	ToggleReactionTx(ctx context.Context, arg ToggleReactionParams) (ToggleReactionRow, error)
+	InsertReactionTx(ctx context.Context, arg InsertReactionWithWeightParams) (MessageReaction, error)
 }
 
 type SQLStore struct {
 	conn *pgxpool.Pool
 	*Queries
+	Querier
 }
 
 func NewStore(conn *pgxpool.Pool) *SQLStore {
@@ -74,6 +77,7 @@ func (store *SQLStore) execTx(ctx context.Context, fn func(*Queries) error) erro
 
 func (store *SQLStore) CreateChatTx(ctx context.Context, arg StartChatTxParams) (StartChatTxResult, error) {
 	var result StartChatTxResult
+
 	err := store.execTx(ctx, func(q *Queries) error {
 		var err error
 
@@ -85,9 +89,14 @@ func (store *SQLStore) CreateChatTx(ctx context.Context, arg StartChatTxParams) 
 			return err
 		}
 
-		result.Chat, err = q.CreateChatDefaults(ctx, arg.UserExternalID)
+		createChatArgs := CreateChatDefaultsParams{
+			UserExternalID: arg.UserExternalID,
+			Label:          "New Chat",
+		}
+
+		result.Chat, err = q.CreateChatDefaults(ctx, createChatArgs)
 		if err != nil {
-			return fmt.Errorf("store: failed to create chat: %w", err)
+			return fmt.Errorf("failed to create chat: %w", err)
 		}
 
 		msgArg := CreateMessageParams{
@@ -95,11 +104,12 @@ func (store *SQLStore) CreateChatTx(ctx context.Context, arg StartChatTxParams) 
 			SenderExternalID: arg.UserExternalID,
 			Content:          arg.Content,
 			IsSystemMessage:  false,
+			IsAdminMessage:   false,
 		}
 
 		result.Message, err = q.CreateMessage(ctx, msgArg)
 		if err != nil {
-			return fmt.Errorf("store: failed to create initial message: %w", err)
+			return fmt.Errorf("failed to create initial message: %w", err)
 		}
 
 		return nil
@@ -120,17 +130,40 @@ func (store *SQLStore) CreateUserTx(ctx context.Context, arg CreateUserTxParams)
 
 	err := store.execTx(ctx, func(q *Queries) error {
 		var err error
-
 		result.User, err = q.CreateUser(ctx, arg.CreateUserParams)
 		if err != nil {
 			return err
 		}
+		return nil
+	})
 
-		result.UserAccount, err = q.CreateUserAccount(ctx, result.User.UserExternalID)
+	return result, err
+}
+
+func (store *SQLStore) ToggleReactionTx(ctx context.Context, arg ToggleReactionParams) (ToggleReactionRow, error) {
+	var result ToggleReactionRow
+
+	err := store.execTx(ctx, func(q *Queries) error {
+		var err error
+		result, err = q.ToggleReaction(ctx, arg)
 		if err != nil {
-			return err
+			return fmt.Errorf("toggle reaction failed: %w", err)
 		}
+		return nil
+	})
 
+	return result, err
+}
+
+func (store *SQLStore) InsertReactionTx(ctx context.Context, arg InsertReactionWithWeightParams) (MessageReaction, error) {
+	var result MessageReaction
+
+	err := store.execTx(ctx, func(q *Queries) error {
+		var err error
+		result, err = q.InsertReactionWithWeight(ctx, arg)
+		if err != nil {
+			return fmt.Errorf("insert reaction failed: %w", err)
+		}
 		return nil
 	})
 

@@ -9,7 +9,21 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const countMessagesByChat = `-- name: CountMessagesByChat :one
+SELECT COUNT(*) AS count
+FROM messages
+WHERE chat_external_id = $1
+`
+
+func (q *Queries) CountMessagesByChat(ctx context.Context, chatExternalID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countMessagesByChat, chatExternalID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO messages (
@@ -17,12 +31,13 @@ INSERT INTO messages (
     sender_external_id,
     content,
     is_system_message,
+    is_admin_message,
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, NOW(), NOW()
+    $1, $2, $3, $4, $5, NOW(), NOW()
 )
-RETURNING message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, created_at, updated_at
+RETURNING message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, is_admin_message, created_at, updated_at
 `
 
 type CreateMessageParams struct {
@@ -30,16 +45,30 @@ type CreateMessageParams struct {
 	SenderExternalID uuid.UUID `json:"sender_external_id"`
 	Content          string    `json:"content"`
 	IsSystemMessage  bool      `json:"is_system_message"`
+	IsAdminMessage   bool      `json:"is_admin_message"`
 }
 
-func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error) {
+type CreateMessageRow struct {
+	MessageID         pgtype.Int8      `json:"message_id"`
+	MessageExternalID uuid.UUID        `json:"message_external_id"`
+	ChatExternalID    uuid.UUID        `json:"chat_external_id"`
+	SenderExternalID  uuid.UUID        `json:"sender_external_id"`
+	Content           string           `json:"content"`
+	IsSystemMessage   bool             `json:"is_system_message"`
+	IsAdminMessage    bool             `json:"is_admin_message"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (CreateMessageRow, error) {
 	row := q.db.QueryRow(ctx, createMessage,
 		arg.ChatExternalID,
 		arg.SenderExternalID,
 		arg.Content,
 		arg.IsSystemMessage,
+		arg.IsAdminMessage,
 	)
-	var i Message
+	var i CreateMessageRow
 	err := row.Scan(
 		&i.MessageID,
 		&i.MessageExternalID,
@@ -47,6 +76,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 		&i.SenderExternalID,
 		&i.Content,
 		&i.IsSystemMessage,
+		&i.IsAdminMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -63,14 +93,44 @@ func (q *Queries) DeleteMessage(ctx context.Context, messageExternalID uuid.UUID
 	return err
 }
 
-const getMessage = `-- name: GetMessage :one
-SELECT message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, created_at, updated_at FROM messages
-WHERE message_external_id = $1
+const deleteMessagesByChat = `-- name: DeleteMessagesByChat :exec
+DELETE FROM messages
+WHERE chat_external_id = $1
 `
 
-func (q *Queries) GetMessage(ctx context.Context, messageExternalID uuid.UUID) (Message, error) {
-	row := q.db.QueryRow(ctx, getMessage, messageExternalID)
-	var i Message
+func (q *Queries) DeleteMessagesByChat(ctx context.Context, chatExternalID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMessagesByChat, chatExternalID)
+	return err
+}
+
+const editMessage = `-- name: EditMessage :one
+UPDATE messages
+SET content = $2,
+    updated_at = NOW()
+WHERE message_external_id = $1
+RETURNING message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, is_admin_message, created_at, updated_at
+`
+
+type EditMessageParams struct {
+	MessageExternalID uuid.UUID `json:"message_external_id"`
+	Content           string    `json:"content"`
+}
+
+type EditMessageRow struct {
+	MessageID         pgtype.Int8      `json:"message_id"`
+	MessageExternalID uuid.UUID        `json:"message_external_id"`
+	ChatExternalID    uuid.UUID        `json:"chat_external_id"`
+	SenderExternalID  uuid.UUID        `json:"sender_external_id"`
+	Content           string           `json:"content"`
+	IsSystemMessage   bool             `json:"is_system_message"`
+	IsAdminMessage    bool             `json:"is_admin_message"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) EditMessage(ctx context.Context, arg EditMessageParams) (EditMessageRow, error) {
+	row := q.db.QueryRow(ctx, editMessage, arg.MessageExternalID, arg.Content)
+	var i EditMessageRow
 	err := row.Scan(
 		&i.MessageID,
 		&i.MessageExternalID,
@@ -78,6 +138,80 @@ func (q *Queries) GetMessage(ctx context.Context, messageExternalID uuid.UUID) (
 		&i.SenderExternalID,
 		&i.Content,
 		&i.IsSystemMessage,
+		&i.IsAdminMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getLastMessageByChat = `-- name: GetLastMessageByChat :one
+SELECT message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, is_admin_message, created_at, updated_at
+FROM messages
+WHERE chat_external_id = $1
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetLastMessageByChatRow struct {
+	MessageID         pgtype.Int8      `json:"message_id"`
+	MessageExternalID uuid.UUID        `json:"message_external_id"`
+	ChatExternalID    uuid.UUID        `json:"chat_external_id"`
+	SenderExternalID  uuid.UUID        `json:"sender_external_id"`
+	Content           string           `json:"content"`
+	IsSystemMessage   bool             `json:"is_system_message"`
+	IsAdminMessage    bool             `json:"is_admin_message"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetLastMessageByChat(ctx context.Context, chatExternalID uuid.UUID) (GetLastMessageByChatRow, error) {
+	row := q.db.QueryRow(ctx, getLastMessageByChat, chatExternalID)
+	var i GetLastMessageByChatRow
+	err := row.Scan(
+		&i.MessageID,
+		&i.MessageExternalID,
+		&i.ChatExternalID,
+		&i.SenderExternalID,
+		&i.Content,
+		&i.IsSystemMessage,
+		&i.IsAdminMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMessage = `-- name: GetMessage :one
+SELECT message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, is_admin_message, created_at, updated_at
+FROM messages
+WHERE message_external_id = $1
+LIMIT 1
+`
+
+type GetMessageRow struct {
+	MessageID         pgtype.Int8      `json:"message_id"`
+	MessageExternalID uuid.UUID        `json:"message_external_id"`
+	ChatExternalID    uuid.UUID        `json:"chat_external_id"`
+	SenderExternalID  uuid.UUID        `json:"sender_external_id"`
+	Content           string           `json:"content"`
+	IsSystemMessage   bool             `json:"is_system_message"`
+	IsAdminMessage    bool             `json:"is_admin_message"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetMessage(ctx context.Context, messageExternalID uuid.UUID) (GetMessageRow, error) {
+	row := q.db.QueryRow(ctx, getMessage, messageExternalID)
+	var i GetMessageRow
+	err := row.Scan(
+		&i.MessageID,
+		&i.MessageExternalID,
+		&i.ChatExternalID,
+		&i.SenderExternalID,
+		&i.Content,
+		&i.IsSystemMessage,
+		&i.IsAdminMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -85,7 +219,8 @@ func (q *Queries) GetMessage(ctx context.Context, messageExternalID uuid.UUID) (
 }
 
 const listMessagesByChat = `-- name: ListMessagesByChat :many
-SELECT message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, created_at, updated_at FROM messages
+SELECT message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, is_admin_message, created_at, updated_at
+FROM messages
 WHERE chat_external_id = $1
 ORDER BY created_at ASC
 LIMIT $2
@@ -98,15 +233,27 @@ type ListMessagesByChatParams struct {
 	Offset         int32     `json:"offset"`
 }
 
-func (q *Queries) ListMessagesByChat(ctx context.Context, arg ListMessagesByChatParams) ([]Message, error) {
+type ListMessagesByChatRow struct {
+	MessageID         pgtype.Int8      `json:"message_id"`
+	MessageExternalID uuid.UUID        `json:"message_external_id"`
+	ChatExternalID    uuid.UUID        `json:"chat_external_id"`
+	SenderExternalID  uuid.UUID        `json:"sender_external_id"`
+	Content           string           `json:"content"`
+	IsSystemMessage   bool             `json:"is_system_message"`
+	IsAdminMessage    bool             `json:"is_admin_message"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) ListMessagesByChat(ctx context.Context, arg ListMessagesByChatParams) ([]ListMessagesByChatRow, error) {
 	rows, err := q.db.Query(ctx, listMessagesByChat, arg.ChatExternalID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Message
+	var items []ListMessagesByChatRow
 	for rows.Next() {
-		var i Message
+		var i ListMessagesByChatRow
 		if err := rows.Scan(
 			&i.MessageID,
 			&i.MessageExternalID,
@@ -114,6 +261,71 @@ func (q *Queries) ListMessagesByChat(ctx context.Context, arg ListMessagesByChat
 			&i.SenderExternalID,
 			&i.Content,
 			&i.IsSystemMessage,
+			&i.IsAdminMessage,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMessagesByChatSince = `-- name: ListMessagesByChatSince :many
+SELECT message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, is_admin_message, created_at, updated_at
+FROM messages
+WHERE chat_external_id = $1
+  AND created_at >= $2
+ORDER BY created_at ASC
+LIMIT $3
+OFFSET $4
+`
+
+type ListMessagesByChatSinceParams struct {
+	ChatExternalID uuid.UUID        `json:"chat_external_id"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	Limit          int32            `json:"limit"`
+	Offset         int32            `json:"offset"`
+}
+
+type ListMessagesByChatSinceRow struct {
+	MessageID         pgtype.Int8      `json:"message_id"`
+	MessageExternalID uuid.UUID        `json:"message_external_id"`
+	ChatExternalID    uuid.UUID        `json:"chat_external_id"`
+	SenderExternalID  uuid.UUID        `json:"sender_external_id"`
+	Content           string           `json:"content"`
+	IsSystemMessage   bool             `json:"is_system_message"`
+	IsAdminMessage    bool             `json:"is_admin_message"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) ListMessagesByChatSince(ctx context.Context, arg ListMessagesByChatSinceParams) ([]ListMessagesByChatSinceRow, error) {
+	rows, err := q.db.Query(ctx, listMessagesByChatSince,
+		arg.ChatExternalID,
+		arg.CreatedAt,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMessagesByChatSinceRow
+	for rows.Next() {
+		var i ListMessagesByChatSinceRow
+		if err := rows.Scan(
+			&i.MessageID,
+			&i.MessageExternalID,
+			&i.ChatExternalID,
+			&i.SenderExternalID,
+			&i.Content,
+			&i.IsSystemMessage,
+			&i.IsAdminMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -128,7 +340,8 @@ func (q *Queries) ListMessagesByChat(ctx context.Context, arg ListMessagesByChat
 }
 
 const listRecentMessagesByChat = `-- name: ListRecentMessagesByChat :many
-SELECT message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, created_at, updated_at FROM messages
+SELECT message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, is_admin_message, created_at, updated_at
+FROM messages
 WHERE chat_external_id = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -139,15 +352,27 @@ type ListRecentMessagesByChatParams struct {
 	Limit          int32     `json:"limit"`
 }
 
-func (q *Queries) ListRecentMessagesByChat(ctx context.Context, arg ListRecentMessagesByChatParams) ([]Message, error) {
+type ListRecentMessagesByChatRow struct {
+	MessageID         pgtype.Int8      `json:"message_id"`
+	MessageExternalID uuid.UUID        `json:"message_external_id"`
+	ChatExternalID    uuid.UUID        `json:"chat_external_id"`
+	SenderExternalID  uuid.UUID        `json:"sender_external_id"`
+	Content           string           `json:"content"`
+	IsSystemMessage   bool             `json:"is_system_message"`
+	IsAdminMessage    bool             `json:"is_admin_message"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) ListRecentMessagesByChat(ctx context.Context, arg ListRecentMessagesByChatParams) ([]ListRecentMessagesByChatRow, error) {
 	rows, err := q.db.Query(ctx, listRecentMessagesByChat, arg.ChatExternalID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Message
+	var items []ListRecentMessagesByChatRow
 	for rows.Next() {
-		var i Message
+		var i ListRecentMessagesByChatRow
 		if err := rows.Scan(
 			&i.MessageID,
 			&i.MessageExternalID,
@@ -155,6 +380,7 @@ func (q *Queries) ListRecentMessagesByChat(ctx context.Context, arg ListRecentMe
 			&i.SenderExternalID,
 			&i.Content,
 			&i.IsSystemMessage,
+			&i.IsAdminMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -168,22 +394,29 @@ func (q *Queries) ListRecentMessagesByChat(ctx context.Context, arg ListRecentMe
 	return items, nil
 }
 
-const updateMessage = `-- name: UpdateMessage :one
+const markMessageAsAdmin = `-- name: MarkMessageAsAdmin :one
 UPDATE messages
-SET content = $2,
+SET is_admin_message = TRUE,
     updated_at = NOW()
 WHERE message_external_id = $1
-RETURNING message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, created_at, updated_at
+RETURNING message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, is_admin_message, created_at, updated_at
 `
 
-type UpdateMessageParams struct {
-	MessageExternalID uuid.UUID `json:"message_external_id"`
-	Content           string    `json:"content"`
+type MarkMessageAsAdminRow struct {
+	MessageID         pgtype.Int8      `json:"message_id"`
+	MessageExternalID uuid.UUID        `json:"message_external_id"`
+	ChatExternalID    uuid.UUID        `json:"chat_external_id"`
+	SenderExternalID  uuid.UUID        `json:"sender_external_id"`
+	Content           string           `json:"content"`
+	IsSystemMessage   bool             `json:"is_system_message"`
+	IsAdminMessage    bool             `json:"is_admin_message"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
 }
 
-func (q *Queries) UpdateMessage(ctx context.Context, arg UpdateMessageParams) (Message, error) {
-	row := q.db.QueryRow(ctx, updateMessage, arg.MessageExternalID, arg.Content)
-	var i Message
+func (q *Queries) MarkMessageAsAdmin(ctx context.Context, messageExternalID uuid.UUID) (MarkMessageAsAdminRow, error) {
+	row := q.db.QueryRow(ctx, markMessageAsAdmin, messageExternalID)
+	var i MarkMessageAsAdminRow
 	err := row.Scan(
 		&i.MessageID,
 		&i.MessageExternalID,
@@ -191,6 +424,44 @@ func (q *Queries) UpdateMessage(ctx context.Context, arg UpdateMessageParams) (M
 		&i.SenderExternalID,
 		&i.Content,
 		&i.IsSystemMessage,
+		&i.IsAdminMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markMessageAsSystem = `-- name: MarkMessageAsSystem :one
+UPDATE messages
+SET is_system_message = TRUE,
+    updated_at = NOW()
+WHERE message_external_id = $1
+RETURNING message_id, message_external_id, chat_external_id, sender_external_id, content, is_system_message, is_admin_message, created_at, updated_at
+`
+
+type MarkMessageAsSystemRow struct {
+	MessageID         pgtype.Int8      `json:"message_id"`
+	MessageExternalID uuid.UUID        `json:"message_external_id"`
+	ChatExternalID    uuid.UUID        `json:"chat_external_id"`
+	SenderExternalID  uuid.UUID        `json:"sender_external_id"`
+	Content           string           `json:"content"`
+	IsSystemMessage   bool             `json:"is_system_message"`
+	IsAdminMessage    bool             `json:"is_admin_message"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) MarkMessageAsSystem(ctx context.Context, messageExternalID uuid.UUID) (MarkMessageAsSystemRow, error) {
+	row := q.db.QueryRow(ctx, markMessageAsSystem, messageExternalID)
+	var i MarkMessageAsSystemRow
+	err := row.Scan(
+		&i.MessageID,
+		&i.MessageExternalID,
+		&i.ChatExternalID,
+		&i.SenderExternalID,
+		&i.Content,
+		&i.IsSystemMessage,
+		&i.IsAdminMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

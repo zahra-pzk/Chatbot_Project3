@@ -7,6 +7,7 @@ package db
 import (
 	"database/sql/driver"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -100,6 +101,51 @@ func (ns NullChatStatusType) Value() (driver.Value, error) {
 	return string(ns.ChatStatusType), nil
 }
 
+type MessageType string
+
+const (
+	MessageTypeUser       MessageType = "user"
+	MessageTypeAdmin      MessageType = "admin"
+	MessageTypeSystem     MessageType = "system"
+	MessageTypeSuperadmin MessageType = "superadmin"
+	MessageTypeGuest      MessageType = "guest"
+)
+
+func (e *MessageType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = MessageType(s)
+	case string:
+		*e = MessageType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for MessageType: %T", src)
+	}
+	return nil
+}
+
+type NullMessageType struct {
+	MessageType MessageType `json:"message_type"`
+	Valid       bool        `json:"valid"` // Valid is true if MessageType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMessageType) Scan(value interface{}) error {
+	if value == nil {
+		ns.MessageType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.MessageType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMessageType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.MessageType), nil
+}
+
 type RoleType string
 
 const (
@@ -145,13 +191,48 @@ func (ns NullRoleType) Value() (driver.Value, error) {
 	return string(ns.RoleType), nil
 }
 
+type AiKnowledge struct {
+	ID                  pgtype.Int8 `json:"id"`
+	KnowledgeExternalID uuid.UUID   `json:"knowledge_external_id"`
+	SourceChunkID       pgtype.UUID `json:"source_chunk_id"`
+	SourceText          string      `json:"source_text"`
+	SourceMeta          []byte      `json:"source_meta"`
+	EmbeddingVector     []float64   `json:"embedding_vector"`
+	EmbeddingJson       []byte      `json:"embedding_json"`
+	CreatedAt           time.Time   `json:"created_at"`
+	CreatedBy           pgtype.UUID `json:"created_by"`
+}
+
 type Chat struct {
-	ChatID         pgtype.Int8      `json:"chat_id"`
-	ChatExternalID uuid.UUID        `json:"chat_external_id"`
-	UserExternalID uuid.UUID        `json:"user_external_id"`
-	Status         string           `json:"status"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
+	ChatID          pgtype.Int8      `json:"chat_id"`
+	ChatExternalID  uuid.UUID        `json:"chat_external_id"`
+	UserExternalID  uuid.UUID        `json:"user_external_id"`
+	Label           string           `json:"label"`
+	Status          string           `json:"status"`
+	AdminExternalID pgtype.UUID      `json:"admin_external_id"`
+	Score           pgtype.Int8      `json:"score"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+type Chunk struct {
+	ChunkInternalID pgtype.Int8 `json:"chunk_internal_id"`
+	ChunkExternalID uuid.UUID   `json:"chunk_external_id"`
+	SourceID        pgtype.UUID `json:"source_id"`
+	SourcePath      pgtype.Text `json:"source_path"`
+	SourceFilename  pgtype.Text `json:"source_filename"`
+	SourceMime      pgtype.Text `json:"source_mime"`
+	SourcePage      pgtype.Int4 `json:"source_page"`
+	Department      pgtype.Text `json:"department"`
+	Language        pgtype.Text `json:"language"`
+	Text            string      `json:"text"`
+	TextTsv         interface{} `json:"text_tsv"`
+	EmbeddingVector []byte      `json:"embedding_vector"`
+	EmbeddingJson   []byte      `json:"embedding_json"`
+	ChunkHash       pgtype.Text `json:"chunk_hash"`
+	CreatedAt       time.Time   `json:"created_at"`
+	CreatedBy       pgtype.UUID `json:"created_by"`
+	Status          pgtype.Text `json:"status"`
 }
 
 type Message struct {
@@ -161,29 +242,77 @@ type Message struct {
 	SenderExternalID  uuid.UUID        `json:"sender_external_id"`
 	Content           string           `json:"content"`
 	IsSystemMessage   bool             `json:"is_system_message"`
+	IsAdminMessage    bool             `json:"is_admin_message"`
 	CreatedAt         pgtype.Timestamp `json:"created_at"`
 	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+	MessageType       MessageType      `json:"message_type"`
+}
+
+type MessageAttachment struct {
+	AttachmentID         pgtype.Int8      `json:"attachment_id"`
+	AttachmentExternalID uuid.UUID        `json:"attachment_external_id"`
+	MessageExternalID    uuid.UUID        `json:"message_external_id"`
+	UserExternalID       uuid.UUID        `json:"user_external_id"`
+	ChatExternalID       uuid.UUID        `json:"chat_external_id"`
+	Url                  string           `json:"url"`
+	Filename             pgtype.Text      `json:"filename"`
+	MimeType             pgtype.Text      `json:"mime_type"`
+	SizeBytes            pgtype.Int8      `json:"size_bytes"`
+	Metadata             []byte           `json:"metadata"`
+	CreatedAt            pgtype.Timestamp `json:"created_at"`
+}
+
+type MessageReaction struct {
+	ReactionID         pgtype.Int8      `json:"reaction_id"`
+	ReactionExternalID uuid.UUID        `json:"reaction_external_id"`
+	MessageExternalID  uuid.UUID        `json:"message_external_id"`
+	UserExternalID     uuid.UUID        `json:"user_external_id"`
+	Reaction           string           `json:"reaction"`
+	Score              int64            `json:"score"`
+	CreatedAt          pgtype.Timestamp `json:"created_at"`
+}
+
+type Session struct {
+	SessionID         pgtype.Int8 `json:"session_id"`
+	SessionExternalID uuid.UUID   `json:"session_external_id"`
+	UserAgent         string      `json:"user_agent"`
+	Username          string      `json:"username"`
+	UserExternalID    uuid.UUID   `json:"user_external_id"`
+	IsBlocked         bool        `json:"is_blocked"`
+	ClientIp          string      `json:"client_ip"`
+	RefreshToken      string      `json:"refresh_token"`
+	CreatedAt         time.Time   `json:"created_at"`
+	UpdatedAt         time.Time   `json:"updated_at"`
+	ExpiresAt         time.Time   `json:"expires_at"`
+}
+
+type SourceFile struct {
+	SourceID         pgtype.Int8        `json:"source_id"`
+	SourceExternalID uuid.UUID          `json:"source_external_id"`
+	StorageKey       string             `json:"storage_key"`
+	Filename         pgtype.Text        `json:"filename"`
+	MimeType         pgtype.Text        `json:"mime_type"`
+	SizeBytes        pgtype.Int8        `json:"size_bytes"`
+	UploadedBy       pgtype.UUID        `json:"uploaded_by"`
+	UploadedAt       pgtype.Timestamptz `json:"uploaded_at"`
+	ProcessedAt      pgtype.Timestamptz `json:"processed_at"`
+	Status           pgtype.Text        `json:"status"`
 }
 
 type User struct {
-	UserID         pgtype.Int8      `json:"user_id"`
-	UserExternalID uuid.UUID        `json:"user_external_id"`
-	Name           string           `json:"name"`
-	Username       pgtype.Text      `json:"username"`
-	PhoneNumber    pgtype.Text      `json:"phone_number"`
-	Email          pgtype.Text      `json:"email"`
-	HashedPassword pgtype.Text      `json:"hashed_password"`
-	Role           string           `json:"role"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
-}
-
-type UserAccount struct {
-	AccountID         pgtype.Int8      `json:"account_id"`
-	AccountExternalID uuid.UUID        `json:"account_external_id"`
-	UserExternalID    uuid.UUID        `json:"user_external_id"`
-	Status            AccountStatus    `json:"status"`
-	BirthDate         pgtype.Date      `json:"birth_date"`
-	Photos            []string         `json:"photos"`
-	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+	UserID         pgtype.Int8        `json:"user_id"`
+	UserExternalID uuid.UUID          `json:"user_external_id"`
+	FirstName      string             `json:"first_name"`
+	LastName       string             `json:"last_name"`
+	Username       pgtype.Text        `json:"username"`
+	PhoneNumber    pgtype.Text        `json:"phone_number"`
+	Email          string             `json:"email"`
+	HashedPassword pgtype.Text        `json:"hashed_password"`
+	Role           string             `json:"role"`
+	CreatedAt      pgtype.Timestamp   `json:"created_at"`
+	UpdatedAt      pgtype.Timestamp   `json:"updated_at"`
+	Status         AccountStatus      `json:"status"`
+	BirthDate      pgtype.Date        `json:"birth_date"`
+	Photos         []string           `json:"photos"`
+	LastSeen       pgtype.Timestamptz `json:"last_seen"`
 }
