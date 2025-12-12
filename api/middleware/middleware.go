@@ -1,4 +1,4 @@
-package api
+package middleware
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	db "github.com/zahra-pzk/Chatbot_Project3/db/sqlc"
 	"github.com/zahra-pzk/Chatbot_Project3/token"
+	"github.com/zahra-pzk/Chatbot_Project3/util"
 )
 
 const (
@@ -18,38 +19,34 @@ const (
 	authorizationPayloadKey = "authorization_payload"
 )
 
-func errorResponse(err error) gin.H {
-	return gin.H{"error": err.Error()}
-}
-
-func authMiddleware(tokenMaker token.Maker) gin.HandlerFunc {
+func AuthMiddleware(tokenMaker token.Maker) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		authorizationHeader := ctx.GetHeader(authorizationHeaderKey)
 
 		if len(authorizationHeader) == 0 {
 			err := errors.New("authorization header is not provided")
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse(err))
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, util.ErrorResponse(err))
 			return
 		}
 
 		fields := strings.Fields(authorizationHeader)
 		if len(fields) < 2 {
 			err := errors.New("invalid authorization header format")
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse(err))
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, util.ErrorResponse(err))
 			return
 		}
 
 		authorizationType := strings.ToLower(fields[0])
 		if authorizationType != authorizationTypeBearer {
 			err := fmt.Errorf("unsupported authorization type %s", authorizationType)
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse(err))
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, util.ErrorResponse(err))
 			return
 		}
 
 		accessToken := fields[1]
 		payload, err := tokenMaker.VerifyToken(accessToken)
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse(err))
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, util.ErrorResponse(err))
 			return
 		}
 
@@ -58,7 +55,7 @@ func authMiddleware(tokenMaker token.Maker) gin.HandlerFunc {
 	}
 }
 
-func roleMiddleware(allowedRoles ...db.RoleType) gin.HandlerFunc {
+func RoleMiddleware(allowedRoles ...db.RoleType) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		payload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 
@@ -72,11 +69,11 @@ func roleMiddleware(allowedRoles ...db.RoleType) gin.HandlerFunc {
 		}
 
 		err := errors.New("user does not have the required permission")
-		ctx.AbortWithStatusJSON(http.StatusForbidden, errorResponse(err))
+		ctx.AbortWithStatusJSON(http.StatusForbidden, util.ErrorResponse(err))
 	}
 }
 
-func userOrAdminMiddleware(store *db.SQLStore, allowedAdminRoles []db.RoleType) gin.HandlerFunc {
+func UserOrAdminMiddleware(store *db.SQLStore, allowedAdminRoles []db.RoleType) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		payload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 
@@ -96,6 +93,6 @@ func userOrAdminMiddleware(store *db.SQLStore, allowedAdminRoles []db.RoleType) 
 		}
 
 		err = errors.New("access denied: resource owner or admin role required")
-		ctx.AbortWithStatusJSON(http.StatusForbidden, errorResponse(err))
+		ctx.AbortWithStatusJSON(http.StatusForbidden, util.ErrorResponse(err))
 	}
 }
