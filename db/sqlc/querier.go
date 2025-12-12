@@ -105,6 +105,7 @@ type Querier interface {
 	IsUserOnline(ctx context.Context, userExternalID uuid.UUID) (bool, error)
 	ListSessionsByUser(ctx context.Context, userExternalID uuid.UUID) ([]Session, error)
 	UpdateSessionToken(ctx context.Context, arg UpdateSessionTokenParams) (Session, error)
+	GetSessionByRefreshToken(ctx context.Context, refreshToken string) (Session, error)
 
 	// SourceFile
 	CreateSourceFile(ctx context.Context, arg CreateSourceFileParams) (SourceFile, error)

@@ -95,7 +95,7 @@ INSERT INTO users (
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, 'guest', NOW(), NOW()
+    $1, $2, $3, $4, NOW(), NOW()
 )
 RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos
 `
@@ -104,6 +104,7 @@ type CreateGuestUserParams struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`
+	Role      string `json:"role"`
 }
 
 type CreateGuestUserRow struct {
@@ -124,7 +125,12 @@ type CreateGuestUserRow struct {
 }
 
 func (q *Queries) CreateGuestUser(ctx context.Context, arg CreateGuestUserParams) (CreateGuestUserRow, error) {
-	row := q.db.QueryRow(ctx, createGuestUser, arg.FirstName, arg.LastName, arg.Email)
+	row := q.db.QueryRow(ctx, createGuestUser,
+		arg.FirstName,
+		arg.LastName,
+		arg.Email,
+		arg.Role,
+	)
 	var i CreateGuestUserRow
 	err := row.Scan(
 		&i.UserID,
@@ -160,22 +166,22 @@ INSERT INTO users (
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'incomplete'), $9, $10, NOW(), NOW()
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW()
 )
 RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos
 `
 
 type CreateUserParams struct {
-	FirstName      string      `json:"first_name"`
-	LastName       string      `json:"last_name"`
-	Username       pgtype.Text `json:"username"`
-	PhoneNumber    pgtype.Text `json:"phone_number"`
-	Email          string      `json:"email"`
-	HashedPassword pgtype.Text `json:"hashed_password"`
-	Role           string      `json:"role"`
-	Column8        interface{} `json:"column_8"`
-	BirthDate      pgtype.Date `json:"birth_date"`
-	Photos         []string    `json:"photos"`
+	FirstName      string        `json:"first_name"`
+	LastName       string        `json:"last_name"`
+	Username       pgtype.Text   `json:"username"`
+	PhoneNumber    pgtype.Text   `json:"phone_number"`
+	Email          string        `json:"email"`
+	HashedPassword pgtype.Text   `json:"hashed_password"`
+	Role           string        `json:"role"`
+	Status         AccountStatus `json:"status"`
+	BirthDate      pgtype.Date   `json:"birth_date"`
+	Photos         []string      `json:"photos"`
 }
 
 type CreateUserRow struct {
@@ -204,7 +210,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 		arg.Email,
 		arg.HashedPassword,
 		arg.Role,
-		arg.Column8,
+		arg.Status,
 		arg.BirthDate,
 		arg.Photos,
 	)

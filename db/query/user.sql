@@ -13,7 +13,7 @@ INSERT INTO users (
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'incomplete'), $9, $10, NOW(), NOW()
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW()
 )
 RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos;
 
@@ -26,7 +26,7 @@ INSERT INTO users (
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, 'guest', NOW(), NOW()
+    $1, $2, $3, $4, NOW(), NOW()
 )
 RETURNING user_id, user_external_id, first_name, last_name, username, phone_number, email, hashed_password, role, created_at, updated_at, status, birth_date, photos;
 

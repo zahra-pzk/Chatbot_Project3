@@ -43,3 +43,9 @@ SELECT EXISTS (
       AND is_blocked = false
       AND expires_at > now()
 ) AS is_online;
+
+-- name: GetSessionByRefreshToken :one
+SELECT session_id, session_external_id, user_agent, username, user_external_id, is_blocked, client_ip, refresh_token, created_at, updated_at, expires_at
+FROM sessions
+WHERE refresh_token = $1
+LIMIT 1;

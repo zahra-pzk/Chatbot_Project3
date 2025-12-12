@@ -41,16 +41,19 @@ type Store interface {
 
 type SQLStore struct {
 	conn *pgxpool.Pool
-	*Queries
 	Querier
+	*Queries
 }
 
 func NewStore(conn *pgxpool.Pool) *SQLStore {
+	queries := New(conn)
 	return &SQLStore{
+		Querier: queries,
 		conn:    conn,
 		Queries: New(conn),
 	}
 }
+
 
 func (store *SQLStore) execTx(ctx context.Context, fn func(*Queries) error) error {
 	tx, err := store.conn.BeginTx(ctx, pgx.TxOptions{})

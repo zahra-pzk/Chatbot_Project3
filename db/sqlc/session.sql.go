@@ -113,6 +113,32 @@ func (q *Queries) GetSessionByExternalID(ctx context.Context, sessionExternalID 
 	return i, err
 }
 
+const getSessionByRefreshToken = `-- name: GetSessionByRefreshToken :one
+SELECT session_id, session_external_id, user_agent, username, user_external_id, is_blocked, client_ip, refresh_token, created_at, updated_at, expires_at
+FROM sessions
+WHERE refresh_token = $1
+LIMIT 1
+`
+
+func (q *Queries) GetSessionByRefreshToken(ctx context.Context, refreshToken string) (Session, error) {
+	row := q.db.QueryRow(ctx, getSessionByRefreshToken, refreshToken)
+	var i Session
+	err := row.Scan(
+		&i.SessionID,
+		&i.SessionExternalID,
+		&i.UserAgent,
+		&i.Username,
+		&i.UserExternalID,
+		&i.IsBlocked,
+		&i.ClientIp,
+		&i.RefreshToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const isUserOnline = `-- name: IsUserOnline :one
 SELECT EXISTS (
     SELECT 1 FROM sessions
