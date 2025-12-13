@@ -76,6 +76,51 @@ func (q *Queries) GetSourceByExternalID(ctx context.Context, sourceExternalID uu
 	return i, err
 }
 
+const listDocumentsByUser = `-- name: ListDocumentsByUser :many
+SELECT source_id, source_external_id, filename, mime_type, size_bytes, uploaded_at, status
+FROM source_files
+WHERE uploaded_by = $1
+ORDER BY uploaded_at DESC
+`
+
+type ListDocumentsByUserRow struct {
+	SourceID         pgtype.Int8        `json:"source_id"`
+	SourceExternalID uuid.UUID          `json:"source_external_id"`
+	Filename         pgtype.Text        `json:"filename"`
+	MimeType         pgtype.Text        `json:"mime_type"`
+	SizeBytes        pgtype.Int8        `json:"size_bytes"`
+	UploadedAt       pgtype.Timestamptz `json:"uploaded_at"`
+	Status           pgtype.Text        `json:"status"`
+}
+
+func (q *Queries) ListDocumentsByUser(ctx context.Context, uploadedBy pgtype.UUID) ([]ListDocumentsByUserRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentsByUser, uploadedBy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDocumentsByUserRow
+	for rows.Next() {
+		var i ListDocumentsByUserRow
+		if err := rows.Scan(
+			&i.SourceID,
+			&i.SourceExternalID,
+			&i.Filename,
+			&i.MimeType,
+			&i.SizeBytes,
+			&i.UploadedAt,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUploadedSources = `-- name: ListUploadedSources :many
 SELECT source_id, source_external_id, storage_key, filename, mime_type, size_bytes, uploaded_by, uploaded_at, processed_at, status
 FROM source_files

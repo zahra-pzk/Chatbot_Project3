@@ -112,4 +112,5 @@ type Querier interface {
 	GetSourceByExternalID(ctx context.Context, sourceExternalID uuid.UUID) (SourceFile, error)
 	ListUploadedSources(ctx context.Context, limit int32) ([]SourceFile, error)
 	MarkSourceProcessed(ctx context.Context, sourceID pgtype.Int8) error
+	ListDocumentsByUser(ctx context.Context, uploadedBy pgtype.UUID) ([]ListDocumentsByUserRow, error)
 }
