@@ -26,7 +26,7 @@ type Client struct {
 	Store          *db.SQLStore
 	ChatExternalID uuid.UUID
 	UserExternalID uuid.UUID
-	Role           db.RoleType
+	Role           string
 }
 
 type IncomingMessage struct {
@@ -37,10 +37,14 @@ type OutgoingMessage struct {
 	Content          string    `json:"content"`
 	SenderExternalID uuid.UUID `json:"sender_external_id"`
 	CreatedAt        string    `json:"created_at"`
+	IsSystem         bool      `json:"is_system"`
 }
 
 func (c *Client) ReadPump() {
-	defer func() { c.Hub.Unregister <- c; c.Conn.Close() }()
+	defer func() {
+		c.Hub.Unregister <- c
+		c.Conn.Close()
+	}()
 	c.Conn.SetReadLimit(maxMessageSize)
 	c.Conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.Conn.SetPongHandler(func(string) error {
@@ -52,7 +56,7 @@ func (c *Client) ReadPump() {
 		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("unexpected close error: %v", err)
+				log.Printf("error: %v", err)
 			}
 			break
 		}
@@ -60,20 +64,30 @@ func (c *Client) ReadPump() {
 
 		var incomingMsg IncomingMessage
 		if err := json.Unmarshal(message, &incomingMsg); err != nil {
-			log.Printf("error parsing message JSON: %v", err)
 			continue
+		}
+
+		if c.Role == "admin" || c.Role == "superadmin" || c.Role == "system" {
+			chat, _ := c.Store.Querier.GetChat(context.Background(), c.ChatExternalID)
+			if chat.Status == "pending" {
+				c.Store.Querier.UpdateChatStatus(context.Background(), db.UpdateChatStatusParams{
+					ChatExternalID: c.ChatExternalID,
+					Column2:        string(db.ChatStatusTypeOpen),
+				})
+			}
 		}
 
 		arg := db.CreateMessageParams{
 			ChatExternalID:   c.ChatExternalID,
 			SenderExternalID: c.UserExternalID,
 			Content:          incomingMsg.Content,
-			IsSystemMessage:  false,
+			IsSystemMessage:  c.Role == "system",
+			IsAdminMessage:   c.Role == "admin" || c.Role == "superadmin",
 		}
 
-		msg, err := c.Store.CreateMessage(context.Background(), arg)
+		msg, err := c.Store.Querier.CreateMessage(context.Background(), arg)
 		if err != nil {
-			log.Printf("error creating message: %v", err)
+			log.Printf("DB error: %v", err)
 			continue
 		}
 
@@ -81,6 +95,7 @@ func (c *Client) ReadPump() {
 			Content:          msg.Content,
 			SenderExternalID: msg.SenderExternalID,
 			CreatedAt:        msg.CreatedAt.Time.Format(time.RFC3339),
+			IsSystem:         msg.IsSystemMessage,
 		}
 
 		jsonBytes, _ := json.Marshal(outMsg)

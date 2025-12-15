@@ -8,7 +8,7 @@ INSERT INTO chats (
     created_at,
     updated_at
 ) VALUES (
-    $1, COALESCE($2, 'pending'), $3, $4, $5, NOW(), NOW()
+    $1, $2::chat_status_type, $3, $4, $5, NOW(), NOW()
 )
 RETURNING chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at;
 
@@ -53,7 +53,7 @@ OFFSET $2;
 
 -- name: UpdateChatStatus :one
 UPDATE chats
-SET status = $2,
+SET status = $2::chat_status_type,
     updated_at = NOW()
 WHERE chat_external_id = $1
 RETURNING chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at;
@@ -62,7 +62,7 @@ RETURNING chat_id, chat_external_id, user_external_id, label, status, admin_exte
 UPDATE chats
 SET
     user_external_id = COALESCE(NULLIF($2, '00000000-0000-0000-0000-000000000000'::uuid), user_external_id),
-    status = COALESCE($3, status),
+    status = COALESCE($3::chat_status_type, status),
     label = COALESCE(NULLIF($4, ''), label),
     admin_external_id = COALESCE(NULLIF($5, '00000000-0000-0000-0000-000000000000'::uuid), admin_external_id),
     updated_at = NOW()
@@ -84,7 +84,7 @@ WHERE chat_external_id = $1;
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
 WHERE user_external_id = $1
-  AND status = 'open'
+  AND status = 'open'::chat_status_type
 ORDER BY created_at DESC
 LIMIT 1
 FOR UPDATE;
@@ -93,7 +93,7 @@ FOR UPDATE;
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
 WHERE user_external_id = $1
-  AND status = 'pending'
+  AND status = 'pending'::chat_status_type
 ORDER BY created_at DESC
 LIMIT 1
 FOR UPDATE;
@@ -102,7 +102,7 @@ FOR UPDATE;
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
 WHERE user_external_id = $1
-  AND status = 'closed'
+  AND status = 'closed'::chat_status_type
 ORDER BY created_at DESC
 LIMIT 1
 FOR UPDATE;
@@ -110,7 +110,7 @@ FOR UPDATE;
 -- name: ListPendingChats :many
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
-WHERE status = 'pending'
+WHERE status = 'pending'::chat_status_type
 ORDER BY updated_at DESC
 LIMIT $1
 OFFSET $2;
@@ -118,7 +118,7 @@ OFFSET $2;
 -- name: ListOpenChats :many
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
-WHERE status = 'open'
+WHERE status = 'open'::chat_status_type
 ORDER BY updated_at DESC
 LIMIT $1
 OFFSET $2;
@@ -126,7 +126,7 @@ OFFSET $2;
 -- name: ListClosedChats :many
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
-WHERE status = 'closed'
+WHERE status = 'closed'::chat_status_type
 ORDER BY updated_at DESC
 LIMIT $1
 OFFSET $2;

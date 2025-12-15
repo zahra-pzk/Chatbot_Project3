@@ -65,14 +65,14 @@ INSERT INTO chats (
     created_at,
     updated_at
 ) VALUES (
-    $1, COALESCE($2, 'pending'), $3, $4, $5, NOW(), NOW()
+    $1, $2::chat_status_type, $3, $4, $5, NOW(), NOW()
 )
 RETURNING chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 `
 
 type CreateChatParams struct {
 	UserExternalID  uuid.UUID   `json:"user_external_id"`
-	Column2         interface{} `json:"column_2"`
+	Column2         string      `json:"column_2"`
 	Label           string      `json:"label"`
 	AdminExternalID pgtype.UUID `json:"admin_external_id"`
 	Score           pgtype.Int8 `json:"score"`
@@ -318,7 +318,7 @@ const getClosedChatByUser = `-- name: GetClosedChatByUser :one
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
 WHERE user_external_id = $1
-  AND status = 'closed'
+  AND status = 'closed'::chat_status_type
 ORDER BY created_at DESC
 LIMIT 1
 FOR UPDATE
@@ -345,7 +345,7 @@ const getOpenChatByUser = `-- name: GetOpenChatByUser :one
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
 WHERE user_external_id = $1
-  AND status = 'open'
+  AND status = 'open'::chat_status_type
 ORDER BY created_at DESC
 LIMIT 1
 FOR UPDATE
@@ -372,7 +372,7 @@ const getPendingChatByUser = `-- name: GetPendingChatByUser :one
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
 WHERE user_external_id = $1
-  AND status = 'pending'
+  AND status = 'pending'::chat_status_type
 ORDER BY created_at DESC
 LIMIT 1
 FOR UPDATE
@@ -484,7 +484,7 @@ func (q *Queries) ListChats(ctx context.Context, arg ListChatsParams) ([]Chat, e
 const listClosedChats = `-- name: ListClosedChats :many
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
-WHERE status = 'closed'
+WHERE status = 'closed'::chat_status_type
 ORDER BY updated_at DESC
 LIMIT $1
 OFFSET $2
@@ -528,7 +528,7 @@ func (q *Queries) ListClosedChats(ctx context.Context, arg ListClosedChatsParams
 const listOpenChats = `-- name: ListOpenChats :many
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
-WHERE status = 'open'
+WHERE status = 'open'::chat_status_type
 ORDER BY updated_at DESC
 LIMIT $1
 OFFSET $2
@@ -572,7 +572,7 @@ func (q *Queries) ListOpenChats(ctx context.Context, arg ListOpenChatsParams) ([
 const listPendingChats = `-- name: ListPendingChats :many
 SELECT chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
 FROM chats
-WHERE status = 'pending'
+WHERE status = 'pending'::chat_status_type
 ORDER BY updated_at DESC
 LIMIT $1
 OFFSET $2
@@ -617,7 +617,7 @@ const updateChat = `-- name: UpdateChat :one
 UPDATE chats
 SET
     user_external_id = COALESCE(NULLIF($2, '00000000-0000-0000-0000-000000000000'::uuid), user_external_id),
-    status = COALESCE($3, status),
+    status = COALESCE($3::chat_status_type, status),
     label = COALESCE(NULLIF($4, ''), label),
     admin_external_id = COALESCE(NULLIF($5, '00000000-0000-0000-0000-000000000000'::uuid), admin_external_id),
     updated_at = NOW()
@@ -628,7 +628,7 @@ RETURNING chat_id, chat_external_id, user_external_id, label, status, admin_exte
 type UpdateChatParams struct {
 	ChatExternalID uuid.UUID   `json:"chat_external_id"`
 	Column2        interface{} `json:"column_2"`
-	Status         string      `json:"status"`
+	Column3        string      `json:"column_3"`
 	Column4        interface{} `json:"column_4"`
 	Column5        interface{} `json:"column_5"`
 }
@@ -637,7 +637,7 @@ func (q *Queries) UpdateChat(ctx context.Context, arg UpdateChatParams) (Chat, e
 	row := q.db.QueryRow(ctx, updateChat,
 		arg.ChatExternalID,
 		arg.Column2,
-		arg.Status,
+		arg.Column3,
 		arg.Column4,
 		arg.Column5,
 	)
@@ -688,7 +688,7 @@ func (q *Queries) UpdateChatScore(ctx context.Context, arg UpdateChatScoreParams
 
 const updateChatStatus = `-- name: UpdateChatStatus :one
 UPDATE chats
-SET status = $2,
+SET status = $2::chat_status_type,
     updated_at = NOW()
 WHERE chat_external_id = $1
 RETURNING chat_id, chat_external_id, user_external_id, label, status, admin_external_id, score, created_at, updated_at
@@ -696,11 +696,11 @@ RETURNING chat_id, chat_external_id, user_external_id, label, status, admin_exte
 
 type UpdateChatStatusParams struct {
 	ChatExternalID uuid.UUID `json:"chat_external_id"`
-	Status         string    `json:"status"`
+	Column2        string    `json:"column_2"`
 }
 
 func (q *Queries) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error) {
-	row := q.db.QueryRow(ctx, updateChatStatus, arg.ChatExternalID, arg.Status)
+	row := q.db.QueryRow(ctx, updateChatStatus, arg.ChatExternalID, arg.Column2)
 	var i Chat
 	err := row.Scan(
 		&i.ChatID,

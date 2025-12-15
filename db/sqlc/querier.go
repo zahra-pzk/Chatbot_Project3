@@ -67,6 +67,7 @@ type Querier interface {
 	CountReactionsByMessage(ctx context.Context, messageExternalID uuid.UUID) ([]CountReactionsByMessageRow, error)
 	CountUserReactions(ctx context.Context, userExternalID uuid.UUID) (int64, error)
 	GetReactionsSummaryForChat(ctx context.Context, arg GetReactionsSummaryForChatParams) ([]GetReactionsSummaryForChatRow, error)
+	ListAllReactionsByMessage(ctx context.Context, messageExternalID uuid.UUID) ([]MessageReaction, error)
 	GetTopReactionersInChat(ctx context.Context, arg GetTopReactionersInChatParams) ([]GetTopReactionersInChatRow, error)
 	GetUserReactionForMessage(ctx context.Context, arg GetUserReactionForMessageParams) (MessageReaction, error)
 
